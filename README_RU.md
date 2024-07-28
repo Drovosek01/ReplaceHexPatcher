@@ -1,0 +1,67 @@
+# Replace Hex native for Windows
+
+Language: Русский | [English](README.md)
+
+
+## Что это за репозиторий
+
+Код в этом репозитории это результат попытки найти нативный для Windows способ для поиска и замены байт.
+
+Нативный - значит он без использования сторонних программ (только средствами идущими в комплекте с системой, в данном случае Windows 10).
+
+В UNIX-системах поиск и замену байт в hex формате можно осуществить с помощью утилит `perl` и `sed` (и, наверное, каких-то еще инструментов) которые предустановлены в большинство GNU Linux дистрибутивов и в macOS тоже.
+
+В Windows предустановлены 3 "инструмента программирования" - CMD, Visual Basic Script, Powershell.
+CMD слишком ограничен в возможностях. В Visual Basic Script я не нашел способа написать эффективный код для поиска и замены шаблона байт в файле любого объема. А вот Powershell это, очень грубо говоря, среда выполнения кода C#, а с помощью C# можно делать очень многие вещи и поэтому с помощью кода на Powershell вполне можно выполнить поиск и замену байт в hex формате.
+
+## Альтернативы
+
+Я не нашел других готовых к использованию скриптов на Powershell или Visual Basic Script для поиска замены байт.
+В данном случае альтернативный вариант - не нативный способ:
+
+- sed можно скачать в (и входит в состав):
+    - [sed-windows](https://github.com/mbuilov/sed-windows)
+    - [sed for Windows](https://gnuwin32.sourceforge.net/packages/sed.htm) (GNU for Win32) + [Sourceforge files](https://sourceforge.net/projects/gnuwin32/files/sed/)
+    - [Git for Windows](https://git-scm.com/download/win) или [сайт 2](https://gitforwindows.org/) и использовать `perl` и `sed` которые есть в Git Bash
+    - [Cygwin](https://cygwin.com/)
+    - [msysgit](https://github.com/msysgit/msysgit/) или [msys2](https://www.msys2.org/)
+    - [GNU utilities for Win32](https://unxutils.sourceforge.net/)
+    - [sed by Eric Pement](https://www.pement.org/sed/)
+- [HexAndReplace](https://github.com/jjxtra/HexAndReplace)
+- [BinaryFilePatcher](https://github.com/Invertex/BinaryFilePatcher)
+- [BBE for Windows](https://anilech.blogspot.com/2016/09/binary-block-editor-bbe-for-windows.html)
+
+## Функции
+
+Основная:
+- Поиск и замена всех найденных последовательностей байт
+- Несколько возможных форматов передаваемых hex-значений
+
+Вместе с обертками:
+- Замена байт в нескольких файлах
+- Добавление строк в файл `hosts`
+- Блокировка файлов в Windows Firewall
+- Добавление/создание новых текстовых файлов
+- Работа с файлом-шаблоном с заготовленными паттернами
+
+Больше информации смотрите в документации 
+
+## ToDo
+
+- [ ] Сделать поддержку ограничения замен найденных шаблонов (если нужно заменять не все найденные последовательности)
+- [ ] Сделать поддержку вопросительных знаков `??` в шаблонах как в [AutoIt](https://www.autoitscript.com/autoit3/docs/functions/StringRegExp.htm)
+- [ ] Сделать поддержку регулярных выражений в hex-шаблонах как в `sed` или `perl`
+  - Возможно [этот](https://stackoverflow.com/a/55314611) пример поможет
+- [ ] Сделать функцию поиска начиная с определенного смещения в файле или начиная с определенной части файла в %
+
+## Примеры использования
+
+123
+
+## Системные требования
+
+Весь код был написан и протестирован в Windows 10 x64 22H2.
+
+Я не проверял совместимость кода и использованных функций Powershell с предыдущими версиями. Вероятно для их выполнения понадобится Powershell 5.1 который идет в комплекте с Windows 10.
+
+Если вы работаете на Windows 7, 8, 8.1 то, вероятно, вам необходимо будет установить [Microsoft .NET Framework 4.8](https://support.microsoft.com/topic/microsoft-net-framework-4-8-offline-installer-for-windows-9d23f658-3b97-68ab-d013-aa3c3e7495e0) и [Powershell 5.1](https://www.microsoft.com/download/details.aspx/?id=54616) чтобы код из этого репозитория у вас работал.
