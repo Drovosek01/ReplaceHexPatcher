@@ -86,7 +86,7 @@ function Separate-Patterns {
     # Separate pattern-string on search and replace strings
     foreach ($pattern in $patterns) {
         # Clean and split string with search and replace hex patterns
-        [string[]]$temp = $pattern.Clone().Replace(" ","").Replace("\x","").Replace("\","/").Replace("|","/").Split("/")
+        [string[]]$temp = $pattern.Clone().Replace(" ","").Replace("\x","").Replace("\","/").Replace("|","/").ToUpper().Split("/")
 
         if ($temp.Count -gt 2) {
             throw "Wrong pattern $pattern and $temp"
@@ -173,7 +173,7 @@ function SearchAndReplace-HexPatternInBinaryFile {
 
 <#
 .SYNOPSIS
-Show info about founded or not founded patterns
+Show info about found or not found patterns
 #>
 function HandleFoundPatternsIndexes {
     param (
