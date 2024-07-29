@@ -300,8 +300,9 @@ echo   GBS7FK6R5M08A0QJ59X2V3VEER4TA348065RQ967481KFG"
 ) > %1
     )
     rem change end of lines it created text file
+    rem About conver CRLF and LF on Powershell - https://stackoverflow.com/a/48919146
     if %2 == "CRLF" (
-        powershell -NoProfile -command "((Get-Content '%1') -join \"`n\") + \"`r`n\" | Set-Content -NoNewline '%1'"
+        powershell -NoProfile -command "((Get-Content '%1') -join \"`r`n\") + \"`r`n\" | Set-Content -NoNewline '%1'"
     ) else (
         powershell -NoProfile -command "((Get-Content '%1') -join \"`n\") + \"`n\" | Set-Content -NoNewline '%1'"
     )
