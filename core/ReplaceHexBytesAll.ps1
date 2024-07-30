@@ -163,7 +163,7 @@ function SearchAndReplace-HexPatternInBinaryFile {
     # but we need only unique indexes
     $foundPatternsIndexes = ($foundPatternsIndexes | Select-Object -Unique)
 
-    if (-NOT $foundPatternsIndexes) {
+    if ($foundPatternsIndexes.Count -eq 0) {
         # It need for prevent error when pass empty array to function
         $foundPatternsIndexes = @(-1)
     }
@@ -186,7 +186,7 @@ function HandleFoundPatternsIndexes {
     [string]$notFoundPatterns = ''
 
     if ($foundPatternsIndexes.Count -eq 0 -OR ($foundPatternsIndexes.Count -eq 1 -AND $foundPatternsIndexes[0] -eq -1)) {
-        Write-Host "No patterns was found"
+        Write-Host "No patterns was found in $filePathArg"
     }
     elseif ($foundPatternsIndexes.Count -eq $patterns.Count) {
         Write-Host "All hex patterns found and replaced successfully in $filePathArg"
@@ -218,7 +218,7 @@ try {
     } else {
         $patterns = $patternsArg
     }
-    write-host patternsArg $patterns
+    # write-host patternsArg $patterns
 
     $foundPatternsIndexes = SearchAndReplace-HexPatternInBinaryFile -filePath $filePathArg -patterns $patterns
 
