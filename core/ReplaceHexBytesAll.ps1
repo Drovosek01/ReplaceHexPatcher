@@ -218,7 +218,6 @@ try {
     } else {
         $patterns = $patternsArg
     }
-    # write-host patternsArg $patterns
 
     $foundPatternsIndexes = SearchAndReplace-HexPatternInBinaryFile -filePath $filePathArg -patterns $patterns
 

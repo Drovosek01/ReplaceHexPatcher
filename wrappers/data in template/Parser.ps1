@@ -11,6 +11,9 @@
 # Same splitter like in core script
 $patternSplitters = @('/','\','|')
 
+$comments = @(';', '::')
+# $comments = @(';', '::', '#')
+
 
 
 # =====
@@ -48,7 +51,6 @@ function CleanTemplate {
         [Parameter(Mandatory)]
         [string]$filePath
     )
-    $comments = @(';', '::', '#')
     $content = [System.IO.File]::ReadAllLines($filePath, [System.Text.Encoding]::UTF8)
 
     # Remove lines with comments
@@ -225,6 +227,146 @@ function DetectFilesAndPatternsAndPatch {
     }
 }
 
+<#
+.SYNOPSIS
+Return True if last line empty or contain spaces/tabs only
+#>
+function isLastLineEmptyOrSpaces {
+    [OutputType([bool])]
+    param (
+        [Parameter(Mandatory)]
+        $content
+    )
+    
+    if ($content -is [string]) {
+        return (($content -split "`r`n|`n")[-1].Trim() -eq "")
+    } elseif ($content -is [array]) {
+        return ($content[$content.Length - 1].Trim() -eq "")
+    } else {
+        Write-Error "Given variable is not string or array for detect last line"
+        exit 1
+    }
+}
+
+
+<#
+.DESCRIPTION
+Handle content from template, if in just URL so add zeroIP before URL,
+and make other checks
+then formate these lines to string and return formatted string
+#>
+function CombineLinesForHosts {
+    [OutputType([string])]
+    param (
+        [Parameter(Mandatory)]
+        [string]$templateContent
+    )
+    
+    [string]$localhostIP = '127.0.0.1'
+    [string]$zeroIP = '0.0.0.0'
+    [string]$notModifyFlag = 'NOT MODIFY IT'
+    
+    [string]$contentForAddToHosts = ''
+
+    [string[]]$templateContentLines = $templateContent -split "\n"
+
+    if ($templateContentLines[0].Trim().ToUpper() -eq $notModifyFlag) {
+        foreach ($line in $templateContentLines) {
+            # Trim line is important because end line include \n
+            $line = $line.Trim()
+            if ($line -eq $notModifyFlag) {
+                continue
+            }
+
+            $contentForAddToHosts += $line + "`r`n"
+        }
+    } else {
+        foreach ($line in $templateContent -split "\n") {
+            # Trim line is important because end line include \n
+            $line = $line.Trim()
+            if ($line.StartsWith('#') -OR $line.StartsWith($localhostIP)) {
+                $contentForAddToHosts += $line + "`r`n"
+            } else {
+                $contentForAddToHosts += $zeroIP + ' ' + $line + "`r`n"
+            }
+        }
+        $contentForAddToHosts = $contentForAddToHosts.Replace($localhostIP, $zeroIP)
+    }
+
+    return $contentForAddToHosts.Trim()
+}
+
+
+<#
+.SYNOPSIS
+Handle content from template section and add it to hosts file
+#>
+function AddToHosts {
+    param (
+        [Parameter(Mandatory)]
+        [string]$templateContent
+    )
+
+    $needRemoveReadOnly = $false
+
+    [string]$hostsFilePath = [System.Environment]::SystemDirectory + "\drivers\etc\hosts"
+    $fileAttributes = Get-Item -Path $hostsFilePath | Select-Object -ExpandProperty Attributes
+
+    [string]$contentForAddToHosts = CombineLinesForHosts $templateContent
+
+    if (Test-Path "$hostsFilePath" 2>$null) {
+        # If hosts file exist check if last line hosts file empty
+        # and add indents from the last line hosts file to new content
+        if (isLastLineEmptyOrSpaces ([System.IO.File]::ReadAllText($hostsFilePath))) {
+            $contentForAddToHosts = "`r`n" + $contentForAddToHosts
+        } else {
+            $contentForAddToHosts = "`r`n`r`n" + $contentForAddToHosts
+        }
+
+        # If file have attribute "read only" remove this attribute for made possible patch file
+        if ($fileAttributes -band [System.IO.FileAttributes]::ReadOnly) {
+            $needRemoveReadOnly = $true
+        } else {
+            $needRemoveReadOnly = $false
+        }
+
+        if (DoWeHaveAdministratorPrivileges) {
+            write-host Yes we have rights
+            if ($needRemoveReadOnly) {
+                Set-ItemProperty -Path $hostsFilePath -Name Attributes -Value ($fileAttributes -bxor [System.IO.FileAttributes]::ReadOnly)
+            }
+            Add-Content -Value $contentForAddToHosts -Path $hostsFilePath
+            # Return readonly attribute if it was
+            if ($needRemoveReadOnly) {
+                Set-ItemProperty -Path $hostsFilePath -Name Attributes -Value ($fileAttributes -bor [System.IO.FileAttributes]::ReadOnly)
+                $needRemoveReadOnly = $false
+            }
+        } else {
+            # IMPORTANT !!!
+            # Do not formate this command and not re-write it
+            # it need for add multiline string to Start-Process command
+            $command = @"
+Add-Content -Path $hostsFilePath -Value @'
+$contentForAddToHosts 
+'@
+"@
+            if ($needRemoveReadOnly) {
+                # If hosts file have attribute "read only" we need remove this attribute before adding lines
+                # and restore "default state" (add this attribute to hosts file) after lines to hosts was added
+                $command = "Set-ItemProperty -Path '$hostsFilePath' -Name Attributes -Value ('$fileAttributes' -bxor [System.IO.FileAttributes]::ReadOnly)" `
+                + "`n" `
+                + $command `
+                + "`n" `
+                + "Set-ItemProperty -Path '$hostsFilePath' -Name Attributes -Value ('$fileAttributes' -bor [System.IO.FileAttributes]::ReadOnly)"
+            }
+            Start-Process powershell -Verb RunAs -ArgumentList "-NoProfile -WindowStyle Hidden -Command `"$command`""
+        }
+    } else {
+        Start-Process powershell -Verb RunAs -ArgumentList "-NoProfile -WindowStyle Hidden -Command `"Set-Content -Value `"$contentForAddToHosts`" -Path `"$hostsFilePath`"`""
+    }
+
+}
+
 
 <#
 .SYNOPSIS
@@ -305,7 +447,7 @@ function GetTemplateFile {
         [string]$templateWay
     )
 
-    if (Test-Path $templateWay) {
+    if (Test-Path $templateWay 2>$null) {
         return (Get-ChildItem $templateWay).FullName
     } elseif ((Invoke-WebRequest -UseBasicParsing -Uri $templateWay).StatusCode -eq 200) {
         [string]$tempFile = [System.IO.Path]::GetTempFileName()
@@ -334,14 +476,15 @@ try {
     [string]$fullTemplatePath = GetTemplateFile $templatePath
     [string]$cleanedTemplate = CleanTemplate $fullTemplatePath
 
-    [string]$patcherPathOrUrlContent = ExtractContent $cleanedTemplate "patcher_path_or_url"
-    [string]$variablesContent = ExtractContent $cleanedTemplate "variables"
-    [string]$targetsAndPatternsContent = ExtractContent $cleanedTemplate "targets_and_patterns"
+    # [string]$patcherPathOrUrlContent = ExtractContent $cleanedTemplate "patcher_path_or_url"
+    # [string]$variablesContent = ExtractContent $cleanedTemplate "variables"
+    # [string]$targetsAndPatternsContent = ExtractContent $cleanedTemplate "targets_and_patterns"
+    [string]$hostsContent = ExtractContent $cleanedTemplate "hosts_add"
 
-    [string]$patcherFile = GetPatcherFile $patcherPathOrUrlContent
-    [System.Collections.Hashtable]$variables = GetVariables $variablesContent
-    DetectFilesAndPatternsAndPatch $patcherFile $targetsAndPatternsContent $variables
-    
+    # [string]$patcherFile = GetPatcherFile $patcherPathOrUrlContent
+    # [System.Collections.Hashtable]$variables = GetVariables $variablesContent
+    # DetectFilesAndPatternsAndPatch $patcherFile $targetsAndPatternsContent $variables
+    AddToHosts $hostsContent
     
 
 } catch {
