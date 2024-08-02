@@ -1,4 +1,4 @@
-# Example usage in Windows Powershell:
+﻿# Example usage in Windows Powershell:
 # .\ReplaceHexBytesAll.ps1 -filePath "D:\TEMP\file.exe" -patterns "4883EC28BA2F000000488D0DB0B7380A/11111111111111111111111111111111","C4252A0A48894518488D5518488D4D68/11111111111111111111111111111111","45A8488D55A8488D4D68E8618C1E05BA/1111111111111111111111111111111"
 
 # Main script
@@ -19,6 +19,39 @@ if (-not (Test-Path $filePathArg)) {
 if ($patternsArg.Count -eq 0) {
     Write-Error "No patterns given"
     exit 1
+}
+
+<#
+.SYNOPSIS
+Function for check if for re-write transferred file need admins privileges
+#>
+function Test-WriteAccess {
+    param (
+        [string]$Path
+    )
+    try {
+        $stream = [System.IO.File]::Open($Path, [System.IO.FileMode]::Open, [System.IO.FileAccess]::Write)
+        $stream.Close()
+        return $true
+    } catch {
+        return $false
+    }
+}
+
+<#
+.DESCRIPTION
+Function detect if current script run as administrator
+and return bool info about it
+#>
+function DoWeHaveAdministratorPrivileges {
+    [OutputType([bool])]
+    param ()
+
+    if (-NOT ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole] "Administrator")) {
+        return $false
+    } else {
+        return $true
+    }
 }
 
 <#
@@ -156,6 +189,15 @@ function SearchAndReplace-HexPatternInBinaryFile {
 
     # Not re-write file if hex-patterns not found in file
     if ($foundPatternsIndexes.Count -gt 0) {
+        # Check write access only after remove readonly attribute!
+        $needRunAS = if (Test-WriteAccess -Path $filePathArg) {$false} else {$true}
+    
+        if ($needRunAS -and !(DoWeHaveAdministratorPrivileges)) {
+            $PSHost = If ($PSVersionTable.PSVersion.Major -le 5) {'PowerShell'} Else {'PwSh'}
+            Start-Process -Verb RunAs $PSHost (" -File `"$PSCommandPath`" " + ($MyInvocation.Line -split '\.ps1[\s\''\"]\s*', 2)[-1])
+            break
+        }
+
         $fileAttributes = Get-Item -Path "$filePath" | Select-Object -ExpandProperty Attributes
 
         # If file have attribute "read only" remove this attribute for made possible patch file
@@ -233,6 +275,7 @@ $watch.Start() # launch timer
 
 try {
     Write-Host Start searching patterns...
+
     [string[]]$patterns = @()
     if ($patternsArg.Count -eq 1) {
         # Maybe all patterns written in 1 string if first array item and we need handle it
