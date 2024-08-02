@@ -251,7 +251,6 @@ function SearchAndReplace-HexPatternInBinaryFile {
 
     # Not re-write file if hex-patterns not found in file
     if ($foundPatternsIndexes.Count -gt 0) {
-        # Check write access only after remove readonly attribute!
         $isReadOnly, $needRunAS = Test-ReadOnlyAndWriteAccess -filePath $filePath
         $tempFolderForPatchedFilePath = ''
 
