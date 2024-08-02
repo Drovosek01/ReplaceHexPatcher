@@ -5,6 +5,7 @@
 param (
     [Parameter(Mandatory)]
     [string]$filePathArg,
+    [switch]$makeBackup = $false,
     # One pattern is string with search/replace hex like "AABB/1122" or "AABB,1122" or "\xAA\xBB/\x11\x22" or "A A BB CC|1 12 233"
     [Parameter(Mandatory)]
     [string[]]$patternsArg
@@ -155,6 +156,10 @@ function SearchAndReplace-HexPatternInBinaryFile {
 
     # Not re-write file if hex-patterns not found in file
     if ($foundPatternsIndexes.Count -gt 0) {
+        if ($makeBackup) {
+            Get-ChildItem -Path "$filePath" | Rename-Item -NewName { $_.Name + '.bak' } -Force
+        }
+
         [System.IO.File]::WriteAllBytes($filePath, $fileBytes)
     }
     
