@@ -156,11 +156,26 @@ function SearchAndReplace-HexPatternInBinaryFile {
 
     # Not re-write file if hex-patterns not found in file
     if ($foundPatternsIndexes.Count -gt 0) {
+        $fileAttributes = Get-Item -Path "$filePath" | Select-Object -ExpandProperty Attributes
+
+        # If file have attribute "read only" remove this attribute for made possible patch file
+        if ($fileAttributes -band [System.IO.FileAttributes]::ReadOnly) {
+            Set-ItemProperty -Path "$filePath" -Name Attributes -Value ($fileAttributes -bxor [System.IO.FileAttributes]::ReadOnly)
+            $readOnlyRemoved = $true
+        } else {
+            $readOnlyRemoved = $false
+        }
+        
         if ($makeBackup) {
             Get-ChildItem -Path "$filePath" | Rename-Item -NewName { $_.Name + '.bak' } -Force
         }
 
-        [System.IO.File]::WriteAllBytes($filePath, $fileBytes)
+        [System.IO.File]::WriteAllBytes("$filePath", $fileBytes)
+        
+        # Return readonly attribute if it was
+        if ($readOnlyRemoved) {
+            Set-ItemProperty -Path "$filePath" -Name Attributes -Value ($fileAttributes -bor [System.IO.FileAttributes]::ReadOnly)
+        }
     }
     
     # Each pattern can be found many times
