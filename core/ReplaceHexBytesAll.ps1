@@ -20,6 +20,7 @@ if ($patternsArg.Count -eq 0) {
     Write-Error "No patterns given"
     exit 1
 }
+$myGlobalInvocation = $MyInvocation
 
 <#
 .SYNOPSIS
@@ -187,6 +188,12 @@ function SearchAndReplace-HexPatternInBinaryFile {
         }
     }
 
+    # TODO:
+    # Need to refactor this part of the code - put it in a separate function.
+    # It will be more logical and improve readability.
+    # But when the byte array leaves the limits of this function, the speed of the script deteriorates by 3 times.
+    # I do not yet know why this is so and how to fix it.
+
     # Not re-write file if hex-patterns not found in file
     if ($foundPatternsIndexes.Count -gt 0) {
         # Check write access only after remove readonly attribute!
@@ -194,7 +201,7 @@ function SearchAndReplace-HexPatternInBinaryFile {
     
         if ($needRunAS -and !(DoWeHaveAdministratorPrivileges)) {
             $PSHost = If ($PSVersionTable.PSVersion.Major -le 5) {'PowerShell'} Else {'PwSh'}
-            Start-Process -Verb RunAs $PSHost (" -File `"$PSCommandPath`" " + ($MyInvocation.Line -split '\.ps1[\s\''\"]\s*', 2)[-1])
+            Start-Process -Verb RunAs $PSHost (" -File `"$PSCommandPath`" " + ($myGlobalInvocation.Line -split '\.ps1[\s\''\"]\s*', 2)[-1])
             break
         }
 
