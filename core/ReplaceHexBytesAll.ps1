@@ -154,7 +154,7 @@ function SearchAndReplace-HexPatternInBinaryFile {
     }
 
     # Not re-write file if hex-patterns not found in file
-    if (!($foundPatternsIndexes.Count -eq 0)) {
+    if ($foundPatternsIndexes.Count -gt 0) {
         [System.IO.File]::WriteAllBytes($filePath, $fileBytes)
     }
     
@@ -173,28 +173,28 @@ function SearchAndReplace-HexPatternInBinaryFile {
 
 <#
 .SYNOPSIS
-Show info about found or not found patterns
+Show info about found+replaced or not found patterns
 #>
-function HandleFoundPatternsIndexes {
+function HandleReplacedPatternsIndexes {
     param (
         [Parameter(Mandatory)]
         [string[]]$patterns,
         [Parameter(Mandatory)]
-        [int[]]$foundPatternsIndexes
+        [int[]]$replacedPatternsIndexes
     )
     
     [string]$notFoundPatterns = ''
 
-    if ($foundPatternsIndexes.Count -eq 0 -OR ($foundPatternsIndexes.Count -eq 1 -AND $foundPatternsIndexes[0] -eq -1)) {
+    if ($replacedPatternsIndexes.Count -eq 0 -OR ($replacedPatternsIndexes.Count -eq 1 -AND $replacedPatternsIndexes[0] -eq -1)) {
         Write-Host "No patterns was found in $filePathArg"
     }
-    elseif ($foundPatternsIndexes.Count -eq $patterns.Count) {
+    elseif ($replacedPatternsIndexes.Count -eq $patterns.Count) {
         Write-Host "All hex patterns found and replaced successfully in $filePathArg"
     }
     else {
-        [int[]]$notFoundPatternsIndexes = (0..$patterns.Count).Where({$_ -notin $foundPatternsIndexes})
-        for ($i = 0; $i -lt $notFoundPatternsIndexes.Count; $i++) {
-            $notFoundPatterns += ' ' + $patterns[$notFoundPatternsIndexes[$i]]
+        [int[]]$notReplacedPatternsIndexes = (0..$patterns.Count).Where({$_ -notin $replacedPatternsIndexes})
+        for ($i = 0; $i -lt $notReplacedPatternsIndexes.Count; $i++) {
+            $notFoundPatterns += ' ' + $patterns[$notReplacedPatternsIndexes[$i]]
         }
         Write-Host "Hex patterns" $notFoundPatterns.Trim() "- not found, but other given patterns found and replaced successfully in $filePathArg" 
     }
@@ -219,9 +219,9 @@ try {
         $patterns = $patternsArg
     }
 
-    $foundPatternsIndexes = SearchAndReplace-HexPatternInBinaryFile -filePath $filePathArg -patterns $patterns
+    $replacedPatternsIndexes = SearchAndReplace-HexPatternInBinaryFile -filePath $filePathArg -patterns $patterns
 
-    HandleFoundPatternsIndexes $patterns $foundPatternsIndexes
+    HandleReplacedPatternsIndexes $patterns $replacedPatternsIndexes
 } catch {
     Write-Error $_.Exception.Message
     exit 1
