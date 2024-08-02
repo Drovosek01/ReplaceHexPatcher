@@ -1,4 +1,4 @@
-﻿# Example usage in Windows Powershell:
+# Example usage in Windows Powershell:
 # .\ReplaceHexBytesAll.ps1 -filePath "D:\TEMP\file.exe" -patterns "4883EC28BA2F000000488D0DB0B7380A/11111111111111111111111111111111","C4252A0A48894518488D5518488D4D68/11111111111111111111111111111111","45A8488D55A8488D4D68E8618C1E05BA/1111111111111111111111111111111"
 
 # Main script
@@ -167,7 +167,9 @@ function SearchAndReplace-HexPatternInBinaryFile {
         }
         
         if ($makeBackup) {
-            Get-ChildItem -Path "$filePath" | Rename-Item -NewName { $_.Name + '.bak' } -Force
+            [string]$newFullName = "$filePath.bak"
+            Copy-Item -Path "$filePath" -Destination "$newFullName"
+            Get-Acl "$filePath" | Set-Acl "$newFullName"
         }
 
         [System.IO.File]::WriteAllBytes("$filePath", $fileBytes)
