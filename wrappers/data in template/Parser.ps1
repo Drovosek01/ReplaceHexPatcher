@@ -1,4 +1,4 @@
-﻿param (
+param (
     [Parameter(Mandatory)]
     [string]$templatePath
 )
@@ -12,7 +12,6 @@
 $patternSplitters = @('/','\','|')
 
 $comments = @(';', '::')
-# $comments = @(';', '::', '#')
 
 
 
@@ -92,21 +91,50 @@ function ExtractContent {
     return $contentSection
 }
 
+
 <#
 .SYNOPSIS
 Function for check if for re-write transferred file need admins privileges
+
+.DESCRIPTION
+First, we check the presence of the "read-only" attribute and try to remove this attribute.
+If it is cleaned without errors, then admin rights are not needed (or they have already been issued to this script).
+If there is no "read-only" attribute, then we check the possibility to change the file.
 #>
-function Test-WriteAccess {
+function Test-ReadOnlyAndWriteAccess {
+    [OutputType([bool[]])]
     param (
-        [string]$Path
+        [string]$filePath
     )
-    try {
-        $stream = [System.IO.File]::Open($Path, [System.IO.FileMode]::Open, [System.IO.FileAccess]::Write)
+    
+    $fileAttributes = Get-Item -Path "$filePath" | Select-Object -ExpandProperty Attributes
+    [bool]$isReadOnly = $false
+    [bool]$needRunAs = $false
+
+    if ($fileAttributes -band [System.IO.FileAttributes]::ReadOnly) {
+        try {
+            Set-ItemProperty -Path "$filePath" -Name Attributes -Value ($fileAttributes -bxor [System.IO.FileAttributes]::ReadOnly)
+            $isReadOnly = $true
+            Set-ItemProperty -Path "$filePath" -Name Attributes -Value ($fileAttributes -bor [System.IO.FileAttributes]::ReadOnly)
+            $needRunAs = $false
+        }
+        catch {
+            $isReadOnly = $true
+            $needRunAs = $true
+        }
+    } else {
+        $isReadOnly = $false
+
+        try {
+            $stream = [System.IO.File]::Open($filePath, [System.IO.FileMode]::Open, [System.IO.FileAccess]::Write)
         $stream.Close()
-        return $true
+            $needRunAs = $false
     } catch {
-        return $false
+            $needRunAs = $true
+        }
     }
+
+    return $isReadOnly, $needRunAs
 }
 
 
@@ -122,38 +150,22 @@ function RunPSFile {
         [Parameter(Mandatory)]
         [string]$targetFile,
         [Parameter(Mandatory)]
-        # [string[]]$patterns
         [string]$patterns
     )
 
     $patterns = $patterns -replace ',"$',""
 
-    $fileAttributes = Get-Item -Path $targetFile | Select-Object -ExpandProperty Attributes
+    # The only .ps1 file that needs to be run from template is the patcher (main/core file)
+    # Previously there was additional code here to run the process as administrator or as usual, depending on different conditions
+    # But the logic of restarting on behalf of the administrator has been added to the script patcher.
+    # It looks like it makes no sense to repeat the logic of checking startup as an administrator (but this is not accurate),
+    #   but if necessary, run others.ps1 files, then you will need to return the logic of the conditions to run as administrator
 
-    # If file have attribute "read only" remove this attribute for made possible patch file
-    if ($fileAttributes -band [System.IO.FileAttributes]::ReadOnly) {
-        Set-ItemProperty -Path $targetFile -Name Attributes -Value ($fileAttributes -bxor [System.IO.FileAttributes]::ReadOnly)
-        $readOnlyRemoved = $true
-    } else {
-        $readOnlyRemoved = $false
-    }
-
-    # Check write access only after remove readonly attribute!
-    $needRunAS = if (Test-WriteAccess -Path $targetFile) {$false} else {$true}
-
-    if ($needRunAS -and !(DoWeHaveAdministratorPrivileges)) {
-        $process = Start-Process powershell -Verb RunAs -ArgumentList "-File `"$psFile`" -filePath `"$targetFile`" -patterns", "$patterns" -PassThru -Wait
-    } else {
-        $process = Start-Process powershell -ArgumentList "-File `"$psFile`" -filePath `"$targetFile`" -patterns", "$patterns" -PassThru -Wait
-    }
+    $PSHost = If ($PSVersionTable.PSVersion.Major -le 5) {'PowerShell'} Else {'PwSh'}
+    $process = Start-Process $PSHost -ArgumentList "-File `"$psFile`" -filePath `"$targetFile`" -patterns", "$patterns" -PassThru -Wait
 
     if ($process.ExitCode -gt 0) {
         throw "Something happened wrong when patching file $targetFile"
-    }
-
-    # Return readonly attribute if it was
-    if ($readOnlyRemoved) {
-        Set-ItemProperty -Path $targetFile -Name Attributes -Value ($fileAttributes -bor [System.IO.FileAttributes]::ReadOnly)
     }
 }
 
