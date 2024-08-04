@@ -344,17 +344,16 @@ function DeleteFilesOrFolders {
             continue
         }
 
-        write-host line $line
-
         [bool]$isFile = -not ((Get-Item "$line").PSIsContainer)
         $isReadOnly, $needRunAS = Test-ReadOnlyAndWriteAccess -targetPath "$line" -targetIsFile $isFile
         $fileAttributes = Get-Item -Path "$line" | Select-Object -ExpandProperty Attributes
 
+        if ($isFile) {
         if ((-not $isReadOnly) -and (-not $needRunAS)) {
             if ($needMoveToBin) {
                 Move-ToRecycleBin -targetPath "$line"
             } else {
-                Remove-Item -Path "$line"
+                    Remove-Item -Path "$line" -Recurse
             }
         }
         if ($isReadOnly -and (-not $needRunAS)) {
@@ -363,15 +362,28 @@ function DeleteFilesOrFolders {
                 Move-ToRecycleBin -targetPath "$line"
             } else {
                 Set-ItemProperty -Path "$line" -Name Attributes -Value ($fileAttributes -bxor [System.IO.FileAttributes]::ReadOnly)
-                Remove-Item -Path "$line"
+                    Remove-Item -Path "$line" -Recurse
             }
         }
         if ($needRunAS -and (-not $isReadOnly)) {
-            $itemsDeleteWithAdminsPrivileges.Add("$line")
+                [void]$itemsDeleteWithAdminsPrivileges.Add("$line")
         }
         if ($needRunAS -and $isReadOnly) {
-            $itemsDeleteWithAdminsPrivilegesAndDisableReadOnly.Add("$line")
+                [void]$itemsDeleteWithAdminsPrivilegesAndDisableReadOnly.Add("$line")
         }
+        } else {
+            # If it is a folder, it is very difficult to determine in advance whether administrator rights are needed to delete it,
+            #   because files and folders with different rights may be attached to it and deleting a folder
+            #   with such files will require administrator rights.
+            # So the surest way to determine if you need administrator rights to delete a folder is to try deleting the folder
+            try {
+                Remove-Item -Path "$line" -Recurse -Force -ErrorAction Stop
+            }
+            catch {
+                [void]$itemsDeleteWithAdminsPrivileges.Add("$line")
+            }
+        }
+        
     }
 
     # For all items requiring administrator rights to delete
@@ -399,9 +411,8 @@ foreach (`$itemForDelete in @($allItemsForMoveToBinInString)) {
     } else {
         if ($itemsDeleteWithAdminsPrivileges.Count -gt 0) {
             foreach ($item in $itemsDeleteWithAdminsPrivileges) {
-                $deleteCommand += "Remove-Item -Path '$item'`n"
+                $deleteCommand += "Remove-Item -Path '$item' -Recurse -Force`n"
             }
-            $deleteCommand.Trim()
         }
     
         if ($itemsDeleteWithAdminsPrivilegesAndDisableReadOnly.Count -gt 0) {
@@ -412,10 +423,9 @@ foreach (`$itemForDelete in @($allItemsForMoveToBinInString)) {
                 # it need for add multiline string to Start-Process command
                 $deleteCommand += @"
 Set-ItemProperty -Path '$item' -Name Attributes -Value ('$fileAttributes' -bxor [System.IO.FileAttributes]::ReadOnly)
-Remove-Item -Path '$item'
+Remove-Item -Path '$item' -Recurse -Force
 "@
             }
-            $deleteCommand.Trim()
         }
     }
 
