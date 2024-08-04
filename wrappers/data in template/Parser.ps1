@@ -1,4 +1,4 @@
-param (
+﻿param (
     [Parameter(Mandatory)]
     [string]$templatePath
 )
@@ -12,6 +12,10 @@ param (
 $patternSplitters = @('/','\','|')
 
 $comments = @(';', '::')
+
+# Text - flags in parse sections
+[string]$notModifyFlag = 'NOT MODIFY IT'
+[string]$moveToBinFlag = 'MOVE TO BIN'
 
 
 
@@ -104,18 +108,23 @@ If there is no "read-only" attribute, then we check the possibility to change th
 function Test-ReadOnlyAndWriteAccess {
     [OutputType([bool[]])]
     param (
-        [string]$filePath
+        [Parameter(Mandatory)]
+        [string]$targetPath,
+        [Parameter(Mandatory)]
+        [bool]$targetIsFile
     )
     
-    $fileAttributes = Get-Item -Path "$filePath" | Select-Object -ExpandProperty Attributes
+    $fileAttributes = Get-Item -Path "$targetPath" | Select-Object -ExpandProperty Attributes
     [bool]$isReadOnly = $false
     [bool]$needRunAs = $false
 
-    if ($fileAttributes -band [System.IO.FileAttributes]::ReadOnly) {
+    if ($targetIsFile -and ($fileAttributes -band [System.IO.FileAttributes]::ReadOnly)) {
+        # if it file check "readonly" attribute
+        # folders in Windows have no "readonly" attribute and if target is folder - skip this check
         try {
-            Set-ItemProperty -Path "$filePath" -Name Attributes -Value ($fileAttributes -bxor [System.IO.FileAttributes]::ReadOnly)
+            Set-ItemProperty -Path "$targetPath" -Name Attributes -Value ($fileAttributes -bxor [System.IO.FileAttributes]::ReadOnly)
             $isReadOnly = $true
-            Set-ItemProperty -Path "$filePath" -Name Attributes -Value ($fileAttributes -bor [System.IO.FileAttributes]::ReadOnly)
+            Set-ItemProperty -Path "$targetPath" -Name Attributes -Value ($fileAttributes -bor [System.IO.FileAttributes]::ReadOnly)
             $needRunAs = $false
         }
         catch {
@@ -125,12 +134,31 @@ function Test-ReadOnlyAndWriteAccess {
     } else {
         $isReadOnly = $false
 
-        try {
-            $stream = [System.IO.File]::Open($filePath, [System.IO.FileMode]::Open, [System.IO.FileAccess]::Write)
-        $stream.Close()
-            $needRunAs = $false
-    } catch {
-            $needRunAs = $true
+        if ($targetIsFile) {
+            # if it file
+            # we check permissions for write and open - it mean we can modify file
+            try {
+                $stream = [System.IO.File]::Open($targetPath, [System.IO.FileMode]::Open, [System.IO.FileAccess]::Write)
+                $stream.Close()
+                $needRunAs = $false
+            } catch {
+                $needRunAs = $true
+            }
+        } else {
+            # if it folder
+            # we check permissions for delete folder
+            try {
+                if (Test-Path -Path $targetPath -AccessRights "Delete" -ErrorAction SilentlyContinue) {
+                    # folder will delete without errors - no need admins right 
+                    $needRunAs = $false
+                } else {
+                    # folder will delete with errors - need admins right 
+                    $needRunAs = $true
+                }
+            }
+            catch {
+                $needRunAs = $true
+            }
         }
     }
 
@@ -239,6 +267,157 @@ function DetectFilesAndPatternsAndPatch {
     }
 }
 
+
+<#
+.SYNOPSIS
+Move item (file or folder) to bin
+#>
+function Move-ToRecycleBin {
+    param (
+        [Parameter(Mandatory)]
+        [string]$targetPath
+    )
+    
+    if (-Not (Test-Path $targetPath)) {
+        Write-Error "Not found file for move to bin - $targetPath"
+        return
+    }
+    
+    [bool]$isFolder = (Get-Item "$line").PSIsContainer
+    $shell = New-Object -ComObject Shell.Application
+
+    $parentFolder = $shell.Namespace((Get-Item $targetPath).DirectoryName)
+    if ($isFolder) {
+        $parentFolder = $shell.Namespace((Get-Item $targetPath).Parent.FullName)
+    }
+
+    $item = $parentFolder.ParseName((Get-Item $targetPath).Name)
+
+    $item.InvokeVerb("delete")
+}
+
+
+<#
+.SYNOPSIS
+Delete items (files and folder) from given lines of string
+#>
+function DeleteFilesOrFolders {
+    param (
+        [Parameter(Mandatory)]
+        [string]$content
+    )
+
+    [string]$cleanedContent = $content.Clone().Trim()
+    
+    [System.Collections.ArrayList]$itemsDeleteWithAdminsPrivileges = New-Object System.Collections.ArrayList
+    [System.Collections.ArrayList]$itemsDeleteWithAdminsPrivilegesAndDisableReadOnly = New-Object System.Collections.ArrayList
+    
+    # replace variables with variables values in all current content
+    foreach ($key in $variables.Keys) {
+        $cleanedContent = $cleanedContent.Replace($key, $variables[$key])
+    }
+    
+    [string[]]$cleanedContentLines = $cleanedContent -split "\n"
+    
+    [bool]$needMoveToBin = $false
+
+    if ($cleanedContentLines[0].Trim() -eq "$moveToBinFlag") {
+        $needMoveToBin = $true
+    }
+    
+    foreach ($line in $cleanedContentLines) {
+        # Trim line is important because end line include \n
+        $line = $line.Trim()
+
+        if (-not (Test-Path "$line")) {
+            continue
+        }
+
+        write-host line $line
+
+        [bool]$isFile = -not ((Get-Item "$line").PSIsContainer)
+        $isReadOnly, $needRunAS = Test-ReadOnlyAndWriteAccess -targetPath "$line" -targetIsFile $isFile
+        $fileAttributes = Get-Item -Path "$line" | Select-Object -ExpandProperty Attributes
+
+        if ((-not $isReadOnly) -and (-not $needRunAS)) {
+            if ($needMoveToBin) {
+                Move-ToRecycleBin -targetPath "$line"
+            } else {
+                Remove-Item -Path "$line"
+            }
+        }
+        if ($isReadOnly -and (-not $needRunAS)) {
+            if ($needMoveToBin) {
+                # files with "readonly" attribute can be moved in Bin without problems without remove this attribute
+                Move-ToRecycleBin -targetPath "$line"
+            } else {
+                Set-ItemProperty -Path "$line" -Name Attributes -Value ($fileAttributes -bxor [System.IO.FileAttributes]::ReadOnly)
+                Remove-Item -Path "$line"
+            }
+        }
+        if ($needRunAS -and (-not $isReadOnly)) {
+            $itemsDeleteWithAdminsPrivileges.Add("$line")
+        }
+        if ($needRunAS -and $isReadOnly) {
+            $itemsDeleteWithAdminsPrivilegesAndDisableReadOnly.Add("$line")
+        }
+    }
+
+    # For all items requiring administrator rights to delete
+    # combine deleting all items in 1 command and run command with admins privileges
+    [string]$deleteCommand = ''
+
+    if ($needMoveToBin) {
+        [string[]]$allItemsForMoveToBinLikeAdmin = $itemsDeleteWithAdminsPrivileges + $itemsDeleteWithAdminsPrivilegesAndDisableReadOnly
+        [string]$allItemsForMoveToBinInString = "`'" + ($allItemsForMoveToBinLikeAdmin -join "','") + "`'"
+        # IMPORTANT !!!
+        # Do not formate this command and not re-write it
+        # it need for add multiline string to Start-Process command
+        $deleteCommand = @"
+`$shell = New-Object -ComObject Shell.Application
+foreach (`$itemForDelete in @($allItemsForMoveToBinInString)) {
+    [bool]`$isFolder = (Get-Item `"`$itemForDelete`").PSIsContainer
+    `$parentFolder = `$shell.Namespace((Get-Item `"`$itemForDelete`").DirectoryName)
+    if (`$isFolder) {
+        `$parentFolder = `$shell.Namespace((Get-Item `"`$itemForDelete`").Parent.FullName)
+    }
+    `$item = `$parentFolder.ParseName((Get-Item `$itemForDelete).Name)
+    `$item.InvokeVerb('delete')
+}
+"@
+    } else {
+        if ($itemsDeleteWithAdminsPrivileges.Count -gt 0) {
+            foreach ($item in $itemsDeleteWithAdminsPrivileges) {
+                $deleteCommand += "Remove-Item -Path '$item'`n"
+            }
+            $deleteCommand.Trim()
+        }
+    
+        if ($itemsDeleteWithAdminsPrivilegesAndDisableReadOnly.Count -gt 0) {
+            foreach ($item in $itemsDeleteWithAdminsPrivilegesAndDisableReadOnly) {
+                $fileAttributes = Get-Item -Path "$item" | Select-Object -ExpandProperty Attributes
+                # IMPORTANT !!!
+                # Do not formate this command and not re-write it
+                # it need for add multiline string to Start-Process command
+                $deleteCommand += @"
+Set-ItemProperty -Path '$item' -Name Attributes -Value ('$fileAttributes' -bxor [System.IO.FileAttributes]::ReadOnly)
+Remove-Item -Path '$item'
+"@
+            }
+            $deleteCommand.Trim()
+        }
+    }
+
+    if ($deleteCommand.Length -gt 0) {
+        $PSHost = If ($PSVersionTable.PSVersion.Major -le 5) {'PowerShell'} Else {'PwSh'}
+        $processId = Start-Process $PSHost -Verb RunAs -ArgumentList "-NoProfile -WindowStyle Hidden -Command `"$deleteCommand`"" -PassThru -Wait
+        
+        if ($processId.ExitCode -gt 0) {
+            throw "Something happened wrong when process remove files or folders with admins privileges"
+        }
+    }
+}
+
 <#
 .SYNOPSIS
 Return True if last line empty or contain spaces/tabs only
@@ -276,7 +455,6 @@ function CombineLinesForHosts {
     
     [string]$localhostIP = '127.0.0.1'
     [string]$zeroIP = '0.0.0.0'
-    [string]$notModifyFlag = 'NOT MODIFY IT'
     
     [string]$contentForAddToHosts = ''
 
@@ -343,7 +521,6 @@ function AddToHosts {
         }
 
         if (DoWeHaveAdministratorPrivileges) {
-            write-host Yes we have rights
             if ($needRemoveReadOnly) {
                 Set-ItemProperty -Path $hostsFilePath -Name Attributes -Value ($fileAttributes -bxor [System.IO.FileAttributes]::ReadOnly)
             }
@@ -491,12 +668,14 @@ try {
     # [string]$patcherPathOrUrlContent = ExtractContent $cleanedTemplate "patcher_path_or_url"
     # [string]$variablesContent = ExtractContent $cleanedTemplate "variables"
     # [string]$targetsAndPatternsContent = ExtractContent $cleanedTemplate "targets_and_patterns"
-    [string]$hostsContent = ExtractContent $cleanedTemplate "hosts_add"
+    # [string]$hostsContent = ExtractContent $cleanedTemplate "hosts_add"
+    [string]$deleteNeedContent = ExtractContent $cleanedTemplate "files_or_folders_delete"
 
     # [string]$patcherFile = GetPatcherFile $patcherPathOrUrlContent
     # [System.Collections.Hashtable]$variables = GetVariables $variablesContent
     # DetectFilesAndPatternsAndPatch $patcherFile $targetsAndPatternsContent $variables
-    AddToHosts $hostsContent
+    # AddToHosts $hostsContent
+    DeleteFilesOrFolders $deleteNeedContent
     
 
 } catch {
