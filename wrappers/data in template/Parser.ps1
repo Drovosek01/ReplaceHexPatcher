@@ -1,4 +1,4 @@
-param (
+﻿param (
     [Parameter(Mandatory)]
     [string]$templatePath
 )
@@ -79,20 +79,47 @@ Get templateContent and sectionName and return text
 between [start-sectionName] and [end-sectionName]
 #>
 function ExtractContent {
-    [OutputType([string])]
+    [OutputType([string[]])]
     param (
         [Parameter(Mandatory)]
         [string]$templateContent,
         [Parameter(Mandatory)]
-        [string]$sectionName
+        [string]$sectionName,
+        [switch]$several
     )
 
-    $start = $templateContent.IndexOf("[start-$sectionName]")+"[start-$sectionName]".Length
-    $end = $templateContent.IndexOf("[end-$sectionName]")
+    [string]$cleanedTemplateContent = $templateContent.Clone()
+    [System.Collections.ArrayList]$contentSection = New-Object System.Collections.ArrayList
 
-    $contentSection = $templateContent.Substring($start, $end-$start).Trim()
+    [int]$start = $cleanedTemplateContent.IndexOf("[start-$sectionName]")+"[start-$sectionName]".Length
+    [int]$end = $cleanedTemplateContent.IndexOf("[end-$sectionName]")
 
-    return $contentSection
+    if (($start -eq -1) -or ($end -eq -1)) {
+        return $contentSection
+    }
+    if ($start -gt $end) {
+        Write-Error "Wrong template. Error on parse section $sectionName"
+        exit 1
+    }
+
+    if ($several) {
+        do {
+            [void]$contentSection.Add($cleanedTemplateContent.Substring($start, $end-$start).Trim())
+            
+            if ($start -gt $end) {
+                Write-Error "Wrong template. Error on parse section $sectionName"
+                exit 1
+            }
+
+            $cleanedTemplateContent = $cleanedTemplateContent.Substring(0, $start) + $cleanedTemplateContent.Substring($end, $cleanedContent.Length-1)
+        } until (
+            ($start -eq -1) -or ($end -eq -1)
+        )
+    } else {
+        [void]$contentSection.Add($cleanedTemplateContent.Substring($start, $end-$start).Trim())
+    }
+
+    return $contentSection.ToArray()
 }
 
 
@@ -165,7 +192,7 @@ function Test-ReadOnlyAndWriteAccess {
                 [void](New-Item -Path $tempFile -ItemType File -Force -ErrorAction Stop)
                 Remove-Item -Path $tempFile -Force -ErrorAction Stop
 
-                    $needRunAs = $false
+                $needRunAs = $false
             }
             catch {
                 $needRunAs = $true
@@ -349,28 +376,28 @@ function DeleteFilesOrFolders {
         $fileAttributes = Get-Item -Path "$line" | Select-Object -ExpandProperty Attributes
 
         if ($isFile) {
-        if ((-not $isReadOnly) -and (-not $needRunAS)) {
-            if ($needMoveToBin) {
-                Move-ToRecycleBin -targetPath "$line"
-            } else {
+            if ((-not $isReadOnly) -and (-not $needRunAS)) {
+                if ($needMoveToBin) {
+                    Move-ToRecycleBin -targetPath "$line"
+                } else {
                     Remove-Item -Path "$line" -Recurse
+                }
             }
-        }
-        if ($isReadOnly -and (-not $needRunAS)) {
-            if ($needMoveToBin) {
-                # files with "readonly" attribute can be moved in Bin without problems without remove this attribute
-                Move-ToRecycleBin -targetPath "$line"
-            } else {
-                Set-ItemProperty -Path "$line" -Name Attributes -Value ($fileAttributes -bxor [System.IO.FileAttributes]::ReadOnly)
+            if ($isReadOnly -and (-not $needRunAS)) {
+                if ($needMoveToBin) {
+                    # files with "readonly" attribute can be moved in Bin without problems without remove this attribute
+                    Move-ToRecycleBin -targetPath "$line"
+                } else {
+                    Set-ItemProperty -Path "$line" -Name Attributes -Value ($fileAttributes -bxor [System.IO.FileAttributes]::ReadOnly)
                     Remove-Item -Path "$line" -Recurse
+                }
             }
-        }
-        if ($needRunAS -and (-not $isReadOnly)) {
+            if ($needRunAS -and (-not $isReadOnly)) {
                 [void]$itemsDeleteWithAdminsPrivileges.Add("$line")
-        }
-        if ($needRunAS -and $isReadOnly) {
+            }
+            if ($needRunAS -and $isReadOnly) {
                 [void]$itemsDeleteWithAdminsPrivilegesAndDisableReadOnly.Add("$line")
-        }
+            }
         } else {
             # If it is a folder, it is very difficult to determine in advance whether administrator rights are needed to delete it,
             #   because files and folders with different rights may be attached to it and deleting a folder
@@ -598,7 +625,7 @@ function GetVariables {
             continue
         } else {
             $tempSplitLine = $line.Split("=")
-            $variables.Add($tempSplitLine[0].Trim(),$tempSplitLine[1].Trim())
+            [void]$variables.Add($tempSplitLine[0].Trim(),$tempSplitLine[1].Trim())
         }
     }
 
@@ -690,14 +717,15 @@ try {
     # [string]$variablesContent = ExtractContent $cleanedTemplate "variables"
     # [string]$targetsAndPatternsContent = ExtractContent $cleanedTemplate "targets_and_patterns"
     # [string]$hostsContent = ExtractContent $cleanedTemplate "hosts_add"
-    [string]$deleteNeedContent = ExtractContent $cleanedTemplate "files_or_folders_delete"
+    [string[]]$deleteNeedContent = (ExtractContent $cleanedTemplate "files_or_folders_delete")
+    # [string]$filesCreateFromTextContent = ExtractContent $cleanedTemplate "file_create_from_text"
 
     # [string]$patcherFile = GetPatcherFile $patcherPathOrUrlContent
     # [System.Collections.Hashtable]$variables = GetVariables $variablesContent
     # DetectFilesAndPatternsAndPatch $patcherFile $targetsAndPatternsContent $variables
     # AddToHosts $hostsContent
-    DeleteFilesOrFolders $deleteNeedContent
-    
+    DeleteFilesOrFolders $deleteNeedContent[0]
+
 
 } catch {
     Write-Error $_.Exception.Message
