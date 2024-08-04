@@ -1,4 +1,4 @@
-﻿param (
+param (
     [Parameter(Mandatory)]
     [string]$templatePath
 )
@@ -148,13 +148,24 @@ function Test-ReadOnlyAndWriteAccess {
             # if it folder
             # we check permissions for delete folder
             try {
-                if (Test-Path -Path $targetPath -AccessRights "Delete" -ErrorAction SilentlyContinue) {
-                    # folder will delete without errors - no need admins right 
+                # Here we need to check if we need administrator rights to manipulate the folder
+                # The only manipulation of the folder from the text in the template is to delete the folder
+                # I have not found a normal way to check if administrator rights are needed to delete a folder
+                # I found only an alternative way - to create a file in a folder and delete it.
+                #   If this happens without errors, then we do not need administrator rights to create and delete a file inside the folder.
+                #   Which means most likely to delete the folder too
+                # 
+                # But this is a bad way because creating and deleting a file is probably a more time-consuming procedure than checking the rights or attributes of a folder.
+                # Also, it does not check the actual right to delete the folder. Folders probably have many different rights and "access levels"
+                #   and if we have the ability/right to create + delete a file inside a folder,
+                #   then it's not a fact that we have the right to delete a folder (this is just my hypothesis)
+                # 
+                # TODO: Find a normal way to check if you need administrator rights to delete a folder
+                $tempFile = [System.IO.Path]::Combine($targetPath, [System.IO.Path]::GetRandomFileName())
+                [void](New-Item -Path $tempFile -ItemType File -Force -ErrorAction Stop)
+                Remove-Item -Path $tempFile -Force -ErrorAction Stop
+
                     $needRunAs = $false
-                } else {
-                    # folder will delete with errors - need admins right 
-                    $needRunAs = $true
-                }
             }
             catch {
                 $needRunAs = $true
