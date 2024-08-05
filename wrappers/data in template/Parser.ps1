@@ -1,4 +1,4 @@
-param (
+﻿param (
     [Parameter(Mandatory)]
     [string]$templatePath
 )
@@ -401,13 +401,17 @@ function Move-ToRecycleBin {
 }
 
 
-function FilesCreateFromText {
+<#
+.SYNOPSIS
+Analyze given text and create new text file with content from text
+#>
+function CreateFilesFromText {
     param (
         [Parameter(Mandatory)]
-        [string]$sectionContents
+        [string]$sectionContent
     )
 
-    [string]$cleanedContent = $sectionContents.Clone().TrimStart()
+    [string]$cleanedContent = $sectionContent.Clone().TrimStart()
     [string]$targetPath = ''
     [string]$endLines = ''
     [string]$targetContent = ''
@@ -440,10 +444,27 @@ function FilesCreateFromText {
     }
 
     try {
-        Set-Content -Value $targetContent -Path $targetPath -NoNewline -ErrorAction Stop
+        [void](New-Item -Path "$targetPath" -ItemType File -Force)
+        Set-Content -Value $targetContent -Path "$targetPath" -NoNewline -ErrorAction Stop
     }
     catch {
-        Start-Process powershell -Verb RunAs -ArgumentList "-NoProfile -WindowStyle Hidden -Command `"Set-Content -Value `"$contentForAddToHosts`" -Path `"$hostsFilePath`" -NoNewline`""
+        Start-Process powershell -Verb RunAs -ArgumentList "-NoProfile -WindowStyle Hidden -Command `"New-Item -Path `"$targetPath`" -ItemType File -Force;Set-Content -Value `"$contentForAddToHosts`" -Path `"$hostsFilePath`" -NoNewline`""
+    }
+}
+
+
+<#
+.SYNOPSIS
+Get array with text and iterate it and function CreateFilesFromText
+#>
+function CreateAllFilesFromText {
+    param (
+        [Parameter(Mandatory)]
+        [string[]]$sectionContents
+    )
+    
+    foreach ($content in $sectionContents) {
+        CreateFilesFromText $content
     }
 }
 
@@ -832,14 +853,14 @@ try {
     # [string]$targetsAndPatternsContent = ExtractContent $cleanedTemplate "targets_and_patterns"
     # [string]$hostsContent = ExtractContent $cleanedTemplate "hosts_add"
     # [string[]]$deleteNeedContent = (ExtractContent $cleanedTemplate "files_or_folders_delete")
-    [string]$filesCreateFromTextContent = ExtractContent $cleanedTemplate "file_create_from_text" -saveEmptyLines
+    [string[]]$createFilesFromTextContent = ExtractContent $cleanedTemplate "file_create_from_text" -saveEmptyLines -several
 
     # [string]$patcherFile = GetPatcherFile $patcherPathOrUrlContent
     # [System.Collections.Hashtable]$variables = GetVariables $variablesContent
     # DetectFilesAndPatternsAndPatch $patcherFile $targetsAndPatternsContent $variables
     # AddToHosts $hostsContent
     # DeleteFilesOrFolders $deleteNeedContent[0]
-    FilesCreateFromText $filesCreateFromTextContent
+    CreateAllFilesFromText $createFilesFromTextContent
 
 
 } catch {
