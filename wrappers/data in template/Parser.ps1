@@ -1,4 +1,4 @@
-param (
+﻿param (
     [Parameter(Mandatory)]
     [string]$templatePath
 )
@@ -403,20 +403,43 @@ function Move-ToRecycleBin {
     $item.InvokeVerb("delete")
 }
 
+<#
+.SYNOPSIS
+Convert given text to base64 string and return it
+#>
+function ConvertBase64ToString {
+    [OutputType([string])]
+    param (
+        [Parameter(Mandatory)]
+        [string]$content
+    )
+
+    if ($content.Length -eq 0) {
+        return $content
+    } else {
+        $decoded = [System.Convert]::FromBase64String($content.Trim())
+        $decoded_result = [System.Text.Encoding]::UTF8.GetString($decoded)
+
+        return $decoded_result
+    }
+}
+
+
 
 <#
 .SYNOPSIS
 Analyze given text and create new text file with content from text
 #>
-function CreateFilesFromText {
+function CreateFilesFromData {
     param (
         [Parameter(Mandatory)]
-        [string]$sectionContent
+        [string]$sectionContent,
+        [switch]$isBase64Content = $false
     )
 
     [string]$cleanedContent = $sectionContent.Clone().TrimStart()
     [string]$targetPath = ''
-    [string]$endLines = ''
+    [string]$endLinesNeed = ''
     [string]$targetContent = ''
     
     # replace variables with variables values in all current content
@@ -431,23 +454,41 @@ function CreateFilesFromText {
     if (Test-Path $targetPath) {
         DeleteFilesOrFolders $targetPath
     }
-    
+
     # check second line in content and detect if it flag for end lines type
     if ($cleanedContentLines.Count -gt 1) {
         if ($cleanedContentLines[1].Trim() -eq 'CRLF') {
-            $endLines = "`r`n"
+            $endLinesNeed = "`r`n"
         } elseif ($cleanedContentLines[1].Trim() -eq 'LF') {
-            $endLines = "`n"
+            $endLinesNeed = "`n"
         }
     }
 
-    # if endLines settled - mean second line in content is tag for endLines and tag is not part future file content
-    # else endLines var is empty - mean second line in content is start for future file content
-    if ("$endLines" -eq '') {
-        $endLines = [System.Environment]::NewLine
-        $targetContent = ($cleanedContentLines[1..($cleanedContentLines.Length-1)]) -join "$endLines"
+    # if endLinesNeed settled - mean second line in content is tag for endLinesNeed and tag is not part future file content
+    # else endLinesNeed var is empty - mean second line in content is start for future file content
+    if ("$endLinesNeed" -eq '') {
+        [string[]]$tempContentLines = $cleanedContentLines[1..($cleanedContentLines.Length-1)]
+        
+        if ($isBase64Content) {
+            $targetContent = ConvertBase64ToString ($tempContentLines -join '')
+        } else {
+            $endLinesNeed = [System.Environment]::NewLine
+            $targetContent = ($tempContentLines) -join "$endLinesNeed"
+        }
     } else {
-        $targetContent = ($cleanedContentLines[2..($cleanedContentLines.Length-1)]) -join "$endLines"
+        [string[]]$tempContentLines = $cleanedContentLines[2..($cleanedContentLines.Length-1)]
+        
+        if ($isBase64Content) {
+            $targetContent = ConvertBase64ToString ($tempContentLines -join '')
+            if ($endLinesNeed -eq "`n") {
+                $targetContent = ($targetContent -replace "`r`n", "`n") -replace "`r", "`n"
+            }
+            if ($endLinesNeed -eq "`r`n") {
+                $targetContent = $targetContent -replace "`n", "`r`n"
+            }
+        } else {
+            $targetContent = ($tempContentLines) -join "$endLinesNeed"
+        }
     }
 
     # create file with content inside and all folder for file path
@@ -467,7 +508,7 @@ function CreateFilesFromText {
 
 <#
 .SYNOPSIS
-Get array with text and iterate it and function CreateFilesFromText
+Get array with text and iterate it and function CreateFilesFromData
 #>
 function CreateAllFilesFromText {
     param (
@@ -476,7 +517,22 @@ function CreateAllFilesFromText {
     )
     
     foreach ($content in $sectionContents) {
-        CreateFilesFromText $content
+        CreateFilesFromData $content
+    }
+}
+
+<#
+.SYNOPSIS
+Get array with text and iterate it and function CreateFilesFromData
+#>
+function CreateAllFilesFromBase64 {
+    param (
+        [Parameter(Mandatory)]
+        [string[]]$sectionContents
+    )
+    
+    foreach ($content in $sectionContents) {
+        CreateFilesFromData $content -isBase64Content
     }
 }
 
@@ -865,14 +921,16 @@ try {
     # [string]$targetsAndPatternsContent = ExtractContent $cleanedTemplate "targets_and_patterns"
     # [string]$hostsContent = ExtractContent $cleanedTemplate "hosts_add"
     # [string[]]$deleteNeedContent = (ExtractContent $cleanedTemplate "files_or_folders_delete")
-    [string[]]$createFilesFromTextContent = ExtractContent $cleanedTemplate "file_create_from_text" -saveEmptyLines -several
+    # [string[]]$createFilesFromTextContent = ExtractContent $cleanedTemplate "file_create_from_text" -saveEmptyLines -several
+    [string[]]$createFilesFromBase64Content = ExtractContent $cleanedTemplate "file_create_from_base64" -saveEmptyLines -several
 
     # [string]$patcherFile = GetPatcherFile $patcherPathOrUrlContent
     # [System.Collections.Hashtable]$variables = GetVariables $variablesContent
     # DetectFilesAndPatternsAndPatch $patcherFile $targetsAndPatternsContent $variables
     # AddToHosts $hostsContent
     # DeleteFilesOrFolders $deleteNeedContent[0]
-    CreateAllFilesFromText $createFilesFromTextContent
+    # CreateAllFilesFromText $createFilesFromTextContent
+    CreateAllFilesFromBase64 $createFilesFromBase64Content
 
 
 } catch {
