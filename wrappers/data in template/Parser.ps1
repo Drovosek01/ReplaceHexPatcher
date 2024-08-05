@@ -1,4 +1,4 @@
-﻿param (
+param (
     [Parameter(Mandatory)]
     [string]$templatePath
 )
@@ -139,6 +139,8 @@ function ExtractContent {
     )
 
     [string]$cleanedTemplateContent = $templateContent.Clone()
+    [string]$startSectionName = "[start-$sectionName]"
+    [string]$endSectionName = "[end-$sectionName]"
 
     if (-not $saveEmptyLines) {
         $cleanedTemplateContent = RemoveEmptyLines $cleanedTemplateContent
@@ -146,32 +148,41 @@ function ExtractContent {
 
     [System.Collections.ArrayList]$contentSection = New-Object System.Collections.ArrayList
 
-    [int]$start = $cleanedTemplateContent.IndexOf("[start-$sectionName]")+"[start-$sectionName]".Length
-    [int]$end = $cleanedTemplateContent.IndexOf("[end-$sectionName]")
+    # start position content between content tags (+1 mean not include in content \n after start tag)
+    [int]$startContentIndex = $cleanedTemplateContent.IndexOf("$startSectionName")+"$startSectionName".Length + 1
+    # end position content between content tags
+    [int]$endContentIndex = $cleanedTemplateContent.IndexOf("$endSectionName")
 
-    if (($start -eq -1) -or ($end -eq -1)) {
+    if (($startContentIndex -eq -1) -or ($endContentIndex -eq -1)) {
         return $contentSection
     }
-    if ($start -gt $end) {
+    if ($startContentIndex -gt $endContentIndex) {
         Write-Error "Wrong template. Error on parse section $sectionName"
         exit 1
     }
 
     if ($several) {
         do {
-            [void]$contentSection.Add($cleanedTemplateContent.Substring($start, $end-$start).Trim())
+            [void]$contentSection.Add($cleanedTemplateContent.Substring($startContentIndex, $endContentIndex-$startContentIndex))
             
-            if ($start -gt $end) {
+            if ($startContentIndex -gt $endContentIndex) {
                 Write-Error "Wrong template. Error on parse section $sectionName"
                 exit 1
             }
 
-            $cleanedTemplateContent = $cleanedTemplateContent.Substring(0, $start) + $cleanedTemplateContent.Substring($end, $cleanedContent.Length-1)
+            [int]$fullEndSectionIndex = $endContentIndex + $endSectionName.Length
+
+            $cleanedTemplateContent = $cleanedTemplateContent.Substring($fullEndSectionIndex, $cleanedTemplateContent.Length-$fullEndSectionIndex-1)
+
+            # start position content between content tags (+1 mean not include in content \n after start tag)
+            [int]$startContentIndex = $cleanedTemplateContent.IndexOf("$startSectionName")+"$startSectionName".Length + 1
+            # end position content between content tags
+            [int]$endContentIndex = $cleanedTemplateContent.IndexOf("$endSectionName")
         } until (
-            ($start -eq -1) -or ($end -eq -1)
+            ($startContentIndex -eq -1) -or ($endContentIndex -eq -1)
         )
     } else {
-        [void]$contentSection.Add($cleanedTemplateContent.Substring($start, $end-$start))
+        [void]$contentSection.Add($cleanedTemplateContent.Substring($startContentIndex, $endContentIndex-$startContentIndex))
     }
 
     return $contentSection.ToArray()
