@@ -1,4 +1,4 @@
-param (
+﻿param (
     [Parameter(Mandatory)]
     [string]$templatePath
 )
@@ -390,6 +390,53 @@ function Move-ToRecycleBin {
 }
 
 
+function FilesCreateFromText {
+    param (
+        [Parameter(Mandatory)]
+        [string]$sectionContents
+    )
+
+    [string]$cleanedContent = $sectionContents.Clone().TrimStart()
+    [string]$targetPath = ''
+    [string]$endLines = ''
+    [string]$targetContent = ''
+    
+    # replace variables with variables values in all current content
+    foreach ($key in $variables.Keys) {
+        $cleanedContent = $cleanedContent.Replace($key, $variables[$key])
+    }
+    
+    [string[]]$cleanedContentLines = $cleanedContent -split "\n"
+    $targetPath = $cleanedContentLines[0].Trim()
+
+    if (Test-Path $targetPath) {
+        DeleteFilesOrFolders $targetPath
+    }
+    
+    if ($cleanedContentLines.Count -gt 1) {
+        if ($cleanedContentLines[1].Trim() -eq 'CRLF') {
+            $endLines = "`r`n"
+        } elseif ($cleanedContentLines[1].Trim() -eq 'LF') {
+            $endLines = "`n"
+        }
+    }
+
+    if ("$endLines" -eq '') {
+        $endLines = [System.Environment]::NewLine
+        $targetContent = ($cleanedContentLines[1..($cleanedContentLines.Length-1)]) -join "$endLines"
+    } else {
+        $targetContent = ($cleanedContentLines[2..($cleanedContentLines.Length-1)]) -join "$endLines"
+    }
+
+    try {
+        Set-Content -Value $targetContent -Path $targetPath -NoNewline -ErrorAction Stop
+    }
+    catch {
+        Start-Process powershell -Verb RunAs -ArgumentList "-NoProfile -WindowStyle Hidden -Command `"Set-Content -Value `"$contentForAddToHosts`" -Path `"$hostsFilePath`" -NoNewline`""
+    }
+}
+
+
 <#
 .SYNOPSIS
 Delete items (files and folder) from given lines of string
@@ -520,6 +567,7 @@ Remove-Item -Path '$item' -Recurse -Force
         }
     }
 }
+
 
 <#
 .SYNOPSIS
@@ -772,14 +820,15 @@ try {
     # [string]$variablesContent = ExtractContent $cleanedTemplate "variables"
     # [string]$targetsAndPatternsContent = ExtractContent $cleanedTemplate "targets_and_patterns"
     # [string]$hostsContent = ExtractContent $cleanedTemplate "hosts_add"
-    [string[]]$deleteNeedContent = (ExtractContent $cleanedTemplate "files_or_folders_delete")
-    # [string]$filesCreateFromTextContent = ExtractContent $cleanedTemplate "file_create_from_text"
+    # [string[]]$deleteNeedContent = (ExtractContent $cleanedTemplate "files_or_folders_delete")
+    [string]$filesCreateFromTextContent = ExtractContent $cleanedTemplate "file_create_from_text" -saveEmptyLines
 
     # [string]$patcherFile = GetPatcherFile $patcherPathOrUrlContent
     # [System.Collections.Hashtable]$variables = GetVariables $variablesContent
     # DetectFilesAndPatternsAndPatch $patcherFile $targetsAndPatternsContent $variables
     # AddToHosts $hostsContent
-    DeleteFilesOrFolders $deleteNeedContent[0]
+    # DeleteFilesOrFolders $deleteNeedContent[0]
+    FilesCreateFromText $filesCreateFromTextContent
 
 
 } catch {
