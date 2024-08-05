@@ -1,4 +1,4 @@
-﻿param (
+param (
     [Parameter(Mandatory)]
     [string]$templatePath
 )
@@ -424,10 +424,12 @@ function CreateFilesFromText {
     [string[]]$cleanedContentLines = $cleanedContent -split "\n"
     $targetPath = $cleanedContentLines[0].Trim()
 
+    # if target file exist - delete it
     if (Test-Path $targetPath) {
         DeleteFilesOrFolders $targetPath
     }
     
+    # check second line in content and detect if it flag for end lines type
     if ($cleanedContentLines.Count -gt 1) {
         if ($cleanedContentLines[1].Trim() -eq 'CRLF') {
             $endLines = "`r`n"
@@ -436,6 +438,8 @@ function CreateFilesFromText {
         }
     }
 
+    # if endLines settled - mean second line in content is tag for endLines and tag is not part future file content
+    # else endLines var is empty - mean second line in content is start for future file content
     if ("$endLines" -eq '') {
         $endLines = [System.Environment]::NewLine
         $targetContent = ($cleanedContentLines[1..($cleanedContentLines.Length-1)]) -join "$endLines"
@@ -443,12 +447,17 @@ function CreateFilesFromText {
         $targetContent = ($cleanedContentLines[2..($cleanedContentLines.Length-1)]) -join "$endLines"
     }
 
+    # create file with content inside and all folder for file path
     try {
         [void](New-Item -Path "$targetPath" -ItemType File -Force)
         Set-Content -Value $targetContent -Path "$targetPath" -NoNewline -ErrorAction Stop
     }
     catch {
-        Start-Process powershell -Verb RunAs -ArgumentList "-NoProfile -WindowStyle Hidden -Command `"New-Item -Path `"$targetPath`" -ItemType File -Force;Set-Content -Value `"$contentForAddToHosts`" -Path `"$hostsFilePath`" -NoNewline`""
+        $processId = Start-Process powershell -Verb RunAs -PassThru -Wait -ArgumentList "-NoProfile -WindowStyle Hidden -Command `"New-Item -Path `"$targetPath`" -ItemType File -Force;Set-Content -Value `"$contentForAddToHosts`" -Path `"$hostsFilePath`" -NoNewline`""
+    
+        if ($processId.ExitCode -gt 0) {
+            throw "Something happened wrong when process remove files or folders with admins privileges"
+        }
     }
 }
 
