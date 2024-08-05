@@ -134,10 +134,16 @@ function ExtractContent {
         [string]$templateContent,
         [Parameter(Mandatory)]
         [string]$sectionName,
-        [switch]$several
+        [switch]$several = $false,
+        [switch]$saveEmptyLines = $false
     )
 
     [string]$cleanedTemplateContent = $templateContent.Clone()
+
+    if (-not $saveEmptyLines) {
+        $cleanedTemplateContent = RemoveEmptyLines $cleanedTemplateContent
+    }
+
     [System.Collections.ArrayList]$contentSection = New-Object System.Collections.ArrayList
 
     [int]$start = $cleanedTemplateContent.IndexOf("[start-$sectionName]")+"[start-$sectionName]".Length
@@ -165,7 +171,7 @@ function ExtractContent {
             ($start -eq -1) -or ($end -eq -1)
         )
     } else {
-        [void]$contentSection.Add($cleanedTemplateContent.Substring($start, $end-$start).Trim())
+        [void]$contentSection.Add($cleanedTemplateContent.Substring($start, $end-$start))
     }
 
     return $contentSection.ToArray()
