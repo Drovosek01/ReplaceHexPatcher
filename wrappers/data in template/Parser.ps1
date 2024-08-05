@@ -149,7 +149,10 @@ function ExtractContent {
     [System.Collections.ArrayList]$contentSection = New-Object System.Collections.ArrayList
 
     # start position content between content tags (+1 mean not include in content \n after start tag)
-    [int]$startContentIndex = $cleanedTemplateContent.IndexOf("$startSectionName")+"$startSectionName".Length + 1
+    [int]$startContentIndex = $cleanedTemplateContent.IndexOf("$startSectionName")+"$startSectionName".Length
+    if ($cleanedTemplateContent[$startContentIndex] -eq "`n") {
+        $startContentIndex +=1
+    }
     # end position content between content tags
     [int]$endContentIndex = $cleanedTemplateContent.IndexOf("$endSectionName")
 
