@@ -16,6 +16,7 @@ $comments = @(';', '::')
 # Text - flags in parse sections
 [string]$notModifyFlag = 'NOT MODIFY IT'
 [string]$moveToBinFlag = 'MOVE TO BIN'
+[string]$binaryDataFlag = 'BINARY DATA'
 
 
 
@@ -407,23 +408,27 @@ function Move-ToRecycleBin {
 .SYNOPSIS
 Convert given text to base64 string and return it
 #>
-function ConvertBase64ToString {
-    [OutputType([string])]
+function ConvertBase64ToData {
     param (
         [Parameter(Mandatory)]
-        [string]$content
+        [string]$content,
+        [switch]$isBinary = $false
     )
 
     if ($content.Length -eq 0) {
         return $content
     } else {
-        $decoded = [System.Convert]::FromBase64String($content.Trim())
-        $decoded_result = [System.Text.Encoding]::UTF8.GetString($decoded)
-
-        return $decoded_result
+        [byte[]]$decodedBytes = [System.Convert]::FromBase64String($content.Trim())
+        
+        if ($isBinary) {
+            return $decodedBytes
+        } else {
+            [string]$decodedString = [System.Text.Encoding]::UTF8.GetString($decodedBytes)
+    
+            return $decodedString
+        }
     }
 }
-
 
 
 <#
@@ -441,6 +446,7 @@ function CreateFilesFromData {
     [string]$targetPath = ''
     [string]$endLinesNeed = ''
     [string]$targetContent = ''
+    [bool]$isBinaryBase64 = $false
     
     # replace variables with variables values in all current content
     foreach ($key in $variables.Keys) {
@@ -461,6 +467,9 @@ function CreateFilesFromData {
             $endLinesNeed = "`r`n"
         } elseif ($cleanedContentLines[1].Trim() -eq 'LF') {
             $endLinesNeed = "`n"
+        } elseif ($cleanedContentLines[1].Trim() -eq "$binaryDataFlag") {
+            $endLinesNeed = 'no need modify'
+            $isBinaryBase64 = $true
         }
     }
 
@@ -470,7 +479,7 @@ function CreateFilesFromData {
         [string[]]$tempContentLines = $cleanedContentLines[1..($cleanedContentLines.Length-1)]
         
         if ($isBase64Content) {
-            $targetContent = ConvertBase64ToString ($tempContentLines -join '')
+            [byte[]]$targetContent = ConvertBase64ToData ($tempContentLines -join '') -isBinary
         } else {
             $endLinesNeed = [System.Environment]::NewLine
             $targetContent = ($tempContentLines) -join "$endLinesNeed"
@@ -478,13 +487,17 @@ function CreateFilesFromData {
     } else {
         [string[]]$tempContentLines = $cleanedContentLines[2..($cleanedContentLines.Length-1)]
         
-        if ($isBase64Content) {
-            $targetContent = ConvertBase64ToString ($tempContentLines -join '')
-            if ($endLinesNeed -eq "`n") {
-                $targetContent = ($targetContent -replace "`r`n", "`n") -replace "`r", "`n"
-            }
-            if ($endLinesNeed -eq "`r`n") {
-                $targetContent = $targetContent -replace "`n", "`r`n"
+        if ($isBase64Content) {            
+            if ($isBinaryBase64) {
+                [byte[]]$targetContent = ConvertBase64ToData ($tempContentLines -join '') -isBinary
+            } else {
+                $targetContent = ConvertBase64ToData ($tempContentLines -join '')
+                if ($endLinesNeed -eq "`n") {
+                    $targetContent = ($targetContent -replace "`r`n", "`n") -replace "`r", "`n"
+                }
+                if ($endLinesNeed -eq "`r`n") {
+                    $targetContent = $targetContent -replace "`n", "`r`n"
+                }
             }
         } else {
             $targetContent = ($tempContentLines) -join "$endLinesNeed"
@@ -493,14 +506,28 @@ function CreateFilesFromData {
 
     # create file with content inside and all folder for file path
     try {
-        [void](New-Item -Path "$targetPath" -ItemType File -Force)
-        Set-Content -Value $targetContent -Path "$targetPath" -NoNewline -ErrorAction Stop
+        if ($isBinaryBase64) {
+            [System.IO.File]::WriteAllBytes($targetPath, $targetContent)
+        } else {
+            [void](New-Item -Path "$targetPath" -ItemType File -Force)
+            Set-Content -Value $targetContent -Path "$targetPath" -NoNewline -ErrorAction Stop
+        }
     }
     catch {
-        $processId = Start-Process powershell -Verb RunAs -PassThru -Wait -ArgumentList "-NoProfile -WindowStyle Hidden -Command `"New-Item -Path `"$targetPath`" -ItemType File -Force;Set-Content -Value `"$contentForAddToHosts`" -Path `"$hostsFilePath`" -NoNewline`""
+        # create same files with same content but with admin privileges
+        if ($isBinaryBase64) {
+            # we can't execute WriteAllBytes in Start-Process because we can't set bytes to command string
+            # so WriteAllBytes to temp file then move temp file with admin privileges
+            $tempFile = [System.IO.Path]::GetTempFileName()
+            [System.IO.File]::WriteAllBytes($tempFile, $targetContent)
+            $processId = Start-Process powershell -Verb RunAs -PassThru -Wait -ArgumentList "-NoProfile -WindowStyle Hidden -Command `"Move-Item -Path '$tempFile' -Destination '$targetPath'`""
+        }
+        else {
+            $processId = Start-Process powershell -Verb RunAs -PassThru -Wait -ArgumentList "-NoProfile -WindowStyle Hidden -Command `"New-Item -Path `"$targetPath`" -ItemType File -Force;Set-Content -Value `"$targetContent`" -Path `"$targetPath`" -NoNewline`""
+        }
     
         if ($processId.ExitCode -gt 0) {
-            throw "Something happened wrong when process remove files or folders with admins privileges"
+            throw "Something happened wrong when create files with data with administrator privileges"
         }
     }
 }
