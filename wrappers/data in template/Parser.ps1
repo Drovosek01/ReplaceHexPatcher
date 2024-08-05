@@ -1,4 +1,4 @@
-﻿param (
+param (
     [Parameter(Mandatory)]
     [string]$templatePath
 )
@@ -45,7 +45,6 @@ function DoWeHaveAdministratorPrivileges {
 .DESCRIPTION
 Remove comments from text template
 and replace template variables with text
-and remove empty lines
 and return cleaned template content
 #>
 function CleanTemplate {
@@ -54,19 +53,69 @@ function CleanTemplate {
         [Parameter(Mandatory)]
         [string]$filePath
     )
-    $content = [System.IO.File]::ReadAllLines($filePath, [System.Text.Encoding]::UTF8)
 
-    # Remove lines with comments
+    [string[]]$content = [System.IO.File]::ReadAllLines($filePath, [System.Text.Encoding]::UTF8)
+
+    # Remove lines with current template-comments tag
     foreach ($comment in $comments) {
         $content = $content | select-string -pattern $comment -notmatch
     }
 
-    # Remove empty lines + convert each line to string with trim
-    $content = $content | Where-Object { -not [String]::IsNullOrWhiteSpace($_) } | ForEach-Object { ($_.Line).Trim() }
     # Replace $USER to current username
     $content = $content -ireplace '\$USER', "$env:USERNAME"
 
     return ($content -join "`n")
+}
+
+
+<#
+.DESCRIPTION
+Remove empty lines from given string
+and convert end lines if need
+and trim all lines if need
+#>
+function RemoveEmptyLines {
+    [OutputType([string])]
+    param (
+        [Parameter(Mandatory)]
+        [string]$content,
+        [string]$endLinesForResult,
+        [switch]$noTrimLines = $false
+    )
+
+    # if content have no text or have 1 symbol - no data for handle
+    # then return given content
+    if ($content.Length -le 1) {
+        return $content
+    }
+
+    [string]$endLinesCurrent = ''
+    [string[]]$contentLines = $content -split "`r`n|`n"
+    [string]$endLinesResult = ''
+
+    # detect type end lines from given text
+    if ($content.IndexOf("`r`n") -gt 0) {
+        $endLinesCurrent = "`r`n"
+    } else {
+        $endLinesCurrent = "`n"
+    }
+    
+    # set type of end lines for result text
+    if ($endLinesForResult -eq 'CRLF') {
+        $endLinesResult = "`r`n"
+    } elseif ($endLinesForResult -eq 'LF') {
+        $endLinesResult = "`n"
+    } else {
+        $endLinesResult = $endLinesCurrent
+    }
+
+    $contentLines = $contentLines | Where-Object { -not [String]::IsNullOrWhiteSpace($_) }
+
+    if (-Not $noTrimLines) {
+        $contentLines = $contentLines | ForEach-Object { ($_.Line).Trim() }
+    }
+
+    return ($contentLines -join "$endLinesResult")
 }
 
 
