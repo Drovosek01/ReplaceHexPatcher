@@ -63,7 +63,7 @@ function CleanTemplate {
     }
 
     # Replace $USER to current username
-    $content = $content -ireplace '\$USER', "$env:USERNAME"
+    $content = $content -ireplace '\$USER', $env:USERNAME
 
     return ($content -join "`n")
 }
@@ -116,7 +116,7 @@ function RemoveEmptyLines {
         $contentLines = $contentLines | ForEach-Object { $_.Trim() }
     }
 
-    return ($contentLines -join "$endLinesResult")
+    return ($contentLines -join $endLinesResult)
 }
 
 
@@ -150,12 +150,12 @@ function ExtractContent {
     [System.Collections.ArrayList]$contentSection = New-Object System.Collections.ArrayList
 
     # start position content between content tags (+1 mean not include in content \n after start tag)
-    [int]$startContentIndex = $cleanedTemplateContent.IndexOf("$startSectionName")+"$startSectionName".Length
+    [int]$startContentIndex = $cleanedTemplateContent.IndexOf($startSectionName)+$startSectionName.Length
     if ($cleanedTemplateContent[$startContentIndex] -eq "`n") {
         $startContentIndex +=1
     }
     # end position content between content tags
-    [int]$endContentIndex = $cleanedTemplateContent.IndexOf("$endSectionName")
+    [int]$endContentIndex = $cleanedTemplateContent.IndexOf($endSectionName)
 
     if (($startContentIndex -eq -1) -or ($endContentIndex -eq -1)) {
         return $contentSection
@@ -179,9 +179,9 @@ function ExtractContent {
             $cleanedTemplateContent = $cleanedTemplateContent.Substring($fullEndSectionIndex, $cleanedTemplateContent.Length-$fullEndSectionIndex-1)
 
             # start position content between content tags (+1 mean not include in content \n after start tag)
-            [int]$startContentIndex = $cleanedTemplateContent.IndexOf("$startSectionName")+"$startSectionName".Length + 1
+            [int]$startContentIndex = $cleanedTemplateContent.IndexOf($startSectionName)+$startSectionName.Length + 1
             # end position content between content tags
-            [int]$endContentIndex = $cleanedTemplateContent.IndexOf("$endSectionName")
+            [int]$endContentIndex = $cleanedTemplateContent.IndexOf($endSectionName)
         } until (
             ($startContentIndex -eq -1) -or ($endContentIndex -eq -1)
         )
@@ -211,7 +211,7 @@ function Test-ReadOnlyAndWriteAccess {
         [bool]$targetIsFile
     )
     
-    $fileAttributes = Get-Item -Path "$targetPath" | Select-Object -ExpandProperty Attributes
+    $fileAttributes = Get-Item -Path $targetPath | Select-Object -ExpandProperty Attributes
     [bool]$isReadOnly = $false
     [bool]$needRunAs = $false
 
@@ -219,9 +219,9 @@ function Test-ReadOnlyAndWriteAccess {
         # if it file check "readonly" attribute
         # folders in Windows have no "readonly" attribute and if target is folder - skip this check
         try {
-            Set-ItemProperty -Path "$targetPath" -Name Attributes -Value ($fileAttributes -bxor [System.IO.FileAttributes]::ReadOnly)
+            Set-ItemProperty -Path $targetPath -Name Attributes -Value ($fileAttributes -bxor [System.IO.FileAttributes]::ReadOnly)
             $isReadOnly = $true
-            Set-ItemProperty -Path "$targetPath" -Name Attributes -Value ($fileAttributes -bor [System.IO.FileAttributes]::ReadOnly)
+            Set-ItemProperty -Path $targetPath -Name Attributes -Value ($fileAttributes -bor [System.IO.FileAttributes]::ReadOnly)
             $needRunAs = $false
         }
         catch {
@@ -337,18 +337,18 @@ function DetectFilesAndPatternsAndPatch {
     foreach ($line in $cleanedContent -split "\n") {
         # Trim line is important because end line include \n
         $line = $line.Trim()
-        if (Test-Path "$line" 2>$null) {
+        if (Test-Path $line 2>$null) {
             if ($patternsArg.Length -gt 1) {
-                RunPSFile "$patcherFile" "$filePathArg" $patternsArg
-                $filePathArg = "$line"
+                RunPSFile $patcherFile $filePathArg $patternsArg
+                $filePathArg = $line
                 $patternsArg = '"'
             } else {
-                $filePathArg = "$line"
+                $filePathArg = $line
             }
         } else {
             # if it ready search+replace pattern - add it to all patterns string
             # and continue lines loop
-            if ($patternSplitters.ForEach("$line".Contains($_))) {
+            if ($patternSplitters.ForEach($line.Contains($_))) {
                 $patternsArg += "$line`",`""
                 continue
             }
@@ -367,7 +367,7 @@ function DetectFilesAndPatternsAndPatch {
 
     if ($patternsArg.Length -gt 1) {
         if ($filePathArg) {
-            RunPSFile "$patcherFile" "$filePathArg" $patternsArg
+            RunPSFile $patcherFile $filePathArg $patternsArg
         } else {
             Write-Error "No valid targets or patterns was found"
             exit 1
@@ -391,7 +391,7 @@ function Move-ToRecycleBin {
         return
     }
     
-    [bool]$isFolder = (Get-Item "$line").PSIsContainer
+    [bool]$isFolder = (Get-Item $line).PSIsContainer
     $shell = New-Object -ComObject Shell.Application
 
     $parentFolder = $shell.Namespace((Get-Item $targetPath).DirectoryName)
@@ -404,9 +404,10 @@ function Move-ToRecycleBin {
     $item.InvokeVerb("delete")
 }
 
+
 <#
 .SYNOPSIS
-Convert given text to base64 string and return it
+Convert given text to base64 string or bytes array and return it
 #>
 function ConvertBase64ToData {
     param (
@@ -467,7 +468,7 @@ function CreateFilesFromData {
             $endLinesNeed = "`r`n"
         } elseif ($cleanedContentLines[1].Trim() -eq 'LF') {
             $endLinesNeed = "`n"
-        } elseif ($cleanedContentLines[1].Trim() -eq "$binaryDataFlag") {
+        } elseif ($cleanedContentLines[1].Trim() -eq $binaryDataFlag) {
             $endLinesNeed = 'no need modify'
             $isBinaryBase64 = $true
         }
@@ -475,14 +476,14 @@ function CreateFilesFromData {
 
     # if endLinesNeed settled - mean second line in content is tag for endLinesNeed and tag is not part future file content
     # else endLinesNeed var is empty - mean second line in content is start for future file content
-    if ("$endLinesNeed" -eq '') {
+    if ($endLinesNeed -eq '') {
         [string[]]$tempContentLines = $cleanedContentLines[1..($cleanedContentLines.Length-1)]
         
         if ($isBase64Content) {
             [byte[]]$targetContent = ConvertBase64ToData ($tempContentLines -join '') -isBinary
         } else {
             $endLinesNeed = [System.Environment]::NewLine
-            $targetContent = ($tempContentLines) -join "$endLinesNeed"
+            $targetContent = ($tempContentLines) -join $endLinesNeed
         }
     } else {
         [string[]]$tempContentLines = $cleanedContentLines[2..($cleanedContentLines.Length-1)]
@@ -500,7 +501,7 @@ function CreateFilesFromData {
                 }
             }
         } else {
-            $targetContent = ($tempContentLines) -join "$endLinesNeed"
+            $targetContent = ($tempContentLines) -join $endLinesNeed
         }
     }
 
@@ -509,8 +510,8 @@ function CreateFilesFromData {
         if ($isBinaryBase64) {
             [System.IO.File]::WriteAllBytes($targetPath, $targetContent)
         } else {
-            [void](New-Item -Path "$targetPath" -ItemType File -Force)
-            Set-Content -Value $targetContent -Path "$targetPath" -NoNewline -ErrorAction Stop
+            [void](New-Item -Path $targetPath -ItemType File -Force)
+            Set-Content -Value $targetContent -Path $targetPath -NoNewline -ErrorAction Stop
         }
     }
     catch {
@@ -588,7 +589,7 @@ function DeleteFilesOrFolders {
     
     [bool]$needMoveToBin = $false
 
-    if ($cleanedContentLines[0].Trim() -eq "$moveToBinFlag") {
+    if ($cleanedContentLines[0].Trim() -eq $moveToBinFlag) {
         $needMoveToBin = $true
     }
     
@@ -596,36 +597,36 @@ function DeleteFilesOrFolders {
         # Trim line is important because end line include \n
         $line = $line.Trim()
 
-        if (-not (Test-Path "$line")) {
+        if (-not (Test-Path $line)) {
             continue
         }
 
-        [bool]$isFile = -not ((Get-Item "$line").PSIsContainer)
-        $isReadOnly, $needRunAS = Test-ReadOnlyAndWriteAccess -targetPath "$line" -targetIsFile $isFile
-        $fileAttributes = Get-Item -Path "$line" | Select-Object -ExpandProperty Attributes
+        [bool]$isFile = -not ((Get-Item $line).PSIsContainer)
+        $isReadOnly, $needRunAS = Test-ReadOnlyAndWriteAccess -targetPath $line -targetIsFile $isFile
+        $fileAttributes = Get-Item -Path $line | Select-Object -ExpandProperty Attributes
 
         if ($isFile) {
             if ((-not $isReadOnly) -and (-not $needRunAS)) {
                 if ($needMoveToBin) {
-                    Move-ToRecycleBin -targetPath "$line"
+                    Move-ToRecycleBin -targetPath $line
                 } else {
-                    Remove-Item -Path "$line" -Recurse
+                    Remove-Item -Path $line -Recurse
                 }
             }
             if ($isReadOnly -and (-not $needRunAS)) {
                 if ($needMoveToBin) {
                     # files with "readonly" attribute can be moved in Bin without problems without remove this attribute
-                    Move-ToRecycleBin -targetPath "$line"
+                    Move-ToRecycleBin -targetPath $line
                 } else {
-                    Set-ItemProperty -Path "$line" -Name Attributes -Value ($fileAttributes -bxor [System.IO.FileAttributes]::ReadOnly)
-                    Remove-Item -Path "$line" -Recurse
+                    Set-ItemProperty -Path $line -Name Attributes -Value ($fileAttributes -bxor [System.IO.FileAttributes]::ReadOnly)
+                    Remove-Item -Path $line -Recurse
                 }
             }
             if ($needRunAS -and (-not $isReadOnly)) {
-                [void]$itemsDeleteWithAdminsPrivileges.Add("$line")
+                [void]$itemsDeleteWithAdminsPrivileges.Add($line)
             }
             if ($needRunAS -and $isReadOnly) {
-                [void]$itemsDeleteWithAdminsPrivilegesAndDisableReadOnly.Add("$line")
+                [void]$itemsDeleteWithAdminsPrivilegesAndDisableReadOnly.Add($line)
             }
         } else {
             # If it is a folder, it is very difficult to determine in advance whether administrator rights are needed to delete it,
@@ -633,10 +634,10 @@ function DeleteFilesOrFolders {
             #   with such files will require administrator rights.
             # So the surest way to determine if you need administrator rights to delete a folder is to try deleting the folder
             try {
-                Remove-Item -Path "$line" -Recurse -Force -ErrorAction Stop
+                Remove-Item -Path $line -Recurse -Force -ErrorAction Stop
             }
             catch {
-                [void]$itemsDeleteWithAdminsPrivileges.Add("$line")
+                [void]$itemsDeleteWithAdminsPrivileges.Add($line)
             }
         }
         
@@ -673,7 +674,7 @@ foreach (`$itemForDelete in @($allItemsForMoveToBinInString)) {
     
         if ($itemsDeleteWithAdminsPrivilegesAndDisableReadOnly.Count -gt 0) {
             foreach ($item in $itemsDeleteWithAdminsPrivilegesAndDisableReadOnly) {
-                $fileAttributes = Get-Item -Path "$item" | Select-Object -ExpandProperty Attributes
+                $fileAttributes = Get-Item -Path $item | Select-Object -ExpandProperty Attributes
                 # IMPORTANT !!!
                 # Do not formate this command and not re-write it
                 # it need for add multiline string to Start-Process command
@@ -782,7 +783,7 @@ function AddToHosts {
 
     [string]$contentForAddToHosts = CombineLinesForHosts $templateContent
 
-    if (Test-Path "$hostsFilePath" 2>$null) {
+    if (Test-Path $hostsFilePath 2>$null) {
         # If hosts file exist check if last line hosts file empty
         # and add indents from the last line hosts file to new content
         if (isLastLineEmptyOrSpaces ([System.IO.File]::ReadAllText($hostsFilePath))) {
@@ -890,8 +891,8 @@ function GetPatcherFile {
                 return $renamedTempFile
             }
         } else {
-            if ((Test-Path "$line" -PathType Leaf 2>$null) -and ("$line".EndsWith(".ps1"))) {
-                return "$line"
+            if ((Test-Path $line -PathType Leaf 2>$null) -and ($line.EndsWith(".ps1"))) {
+                return $line
             }
         }
     }
