@@ -180,8 +180,8 @@ function Separate-Patterns {
         [byte[]]$searchHexPattern = (Convert-HexStringToByteArray -hexString $temp[0])
         [byte[]]$replaceHexPattern = (Convert-HexStringToByteArray -hexString $temp[1])
 
-        [System.Collections.ArrayList]$searchBytes += , $searchHexPattern
-        [System.Collections.ArrayList]$replaceBytes += , $replaceHexPattern
+        [void]$searchBytes.Add($searchHexPattern)
+        [void]$replaceBytes.Add($replaceHexPattern)
     }
 
     return $searchBytes, $replaceBytes
