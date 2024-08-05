@@ -112,7 +112,7 @@ function RemoveEmptyLines {
     $contentLines = $contentLines | Where-Object { -not [String]::IsNullOrWhiteSpace($_) }
 
     if (-Not $noTrimLines) {
-        $contentLines = $contentLines | ForEach-Object { ($_.Line).Trim() }
+        $contentLines = $contentLines | ForEach-Object { $_.Trim() }
     }
 
     return ($contentLines -join "$endLinesResult")
