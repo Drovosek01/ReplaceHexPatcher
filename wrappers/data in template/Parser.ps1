@@ -508,9 +508,10 @@ function CreateFilesFromData {
     # create file with content inside and all folder for file path
     try {
         if ($isBinaryBase64) {
+            [void](New-Item -Path $targetPath -ItemType File -Force -ErrorAction Stop)
             [System.IO.File]::WriteAllBytes($targetPath, $targetContent)
         } else {
-            [void](New-Item -Path $targetPath -ItemType File -Force)
+            [void](New-Item -Path $targetPath -ItemType File -Force -ErrorAction Stop)
             Set-Content -Value $targetContent -Path $targetPath -NoNewline -ErrorAction Stop
         }
     }
@@ -521,7 +522,7 @@ function CreateFilesFromData {
             # so WriteAllBytes to temp file then move temp file with admin privileges
             $tempFile = [System.IO.Path]::GetTempFileName()
             [System.IO.File]::WriteAllBytes($tempFile, $targetContent)
-            $processId = Start-Process powershell -Verb RunAs -PassThru -Wait -ArgumentList "-NoProfile -WindowStyle Hidden -Command `"Move-Item -Path '$tempFile' -Destination '$targetPath'`""
+            $processId = Start-Process powershell -Verb RunAs -PassThru -Wait -ArgumentList "-NoProfile -WindowStyle Hidden -Command `"Copy-Item -Path '$tempFile' -Destination '$targetPath' -Force;Remove-Item '$tempFile'`""
         }
         else {
             $processId = Start-Process powershell -Verb RunAs -PassThru -Wait -ArgumentList "-NoProfile -WindowStyle Hidden -Command `"New-Item -Path `"$targetPath`" -ItemType File -Force;Set-Content -Value `"$targetContent`" -Path `"$targetPath`" -NoNewline`""
