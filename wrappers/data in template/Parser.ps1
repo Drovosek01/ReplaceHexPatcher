@@ -18,6 +18,8 @@ $comments = @(';', '::')
 [string]$moveToBinFlag = 'MOVE TO BIN'
 [string]$binaryDataFlag = 'BINARY DATA'
 
+# Other flags for code
+[string]$fileIsTempFlag = 'fileIsTemp'
 
 
 # =====
@@ -873,7 +875,7 @@ and return path to script file
 or throw error if no one valid path or url was detected
 #>
 function GetPatcherFile {
-    [OutputType([string])]
+    [OutputType([string[]])]
     param (
         [Parameter(Mandatory)]
         [string]$templateContent
@@ -889,11 +891,11 @@ function GetPatcherFile {
                 (New-Object System.Net.WebClient).DownloadFile($line,$tempFile)
                 $renamedTempFile = ($tempFile.Substring(0, $tempFile.LastIndexOf("."))+".ps1")
                 Rename-Item $tempFile $renamedTempFile
-                return $renamedTempFile
+                return $renamedTempFile, $fileIsTempFlag
             }
         } else {
             if ((Test-Path $line -PathType Leaf 2>$null) -and ($line.EndsWith(".ps1"))) {
-                return $line
+                return $line, ''
             }
         }
     }
@@ -910,21 +912,21 @@ This function checks for the presence of a file on the computer if it is the pat
     or creates a temporary file and downloads a template from the specified URL into it
 #>
 function GetTemplateFile {
-    [OutputType([string])]
+    [OutputType([string[]])]
     param (
         [Parameter(Mandatory)]
         [string]$templateWay
     )
 
     if (Test-Path $templateWay 2>$null) {
-        return (Get-ChildItem $templateWay).FullName
+        return (Get-ChildItem $templateWay).FullName, ''
     } elseif ((Invoke-WebRequest -UseBasicParsing -Uri $templateWay).StatusCode -eq 200) {
         [string]$tempFile = [System.IO.Path]::GetTempFileName()
         Get-Process | Where-Object {$_.CPU -ge 1} | Out-File $tempFile
         (New-Object System.Net.WebClient).DownloadFile($templateWay,$tempFile)
         $renamedTempFile = ($tempFile.Substring(0, $tempFile.LastIndexOf("."))+".txt")
         Rename-Item $tempFile $renamedTempFile
-        return (Get-ChildItem $renamedTempFile).FullName
+        return (Get-ChildItem $renamedTempFile).FullName, $fileIsTempFlag
     }
     
     Write-Error "No valid template path or URL was provided"
@@ -942,7 +944,7 @@ $watch = [System.Diagnostics.Stopwatch]::StartNew()
 $watch.Start() # launch timer
 
 try {
-    [string]$fullTemplatePath = GetTemplateFile $templatePath
+    [string]$fullTemplatePath, [string]$templateFileTempFlag = GetTemplateFile $templatePath
     [string]$cleanedTemplate = CleanTemplate $fullTemplatePath
 
     # [string]$patcherPathOrUrlContent = ExtractContent $cleanedTemplate "patcher_path_or_url"
@@ -953,7 +955,7 @@ try {
     # [string[]]$createFilesFromTextContent = ExtractContent $cleanedTemplate "file_create_from_text" -saveEmptyLines -several
     [string[]]$createFilesFromBase64Content = ExtractContent $cleanedTemplate "file_create_from_base64" -saveEmptyLines -several
 
-    # [string]$patcherFile = GetPatcherFile $patcherPathOrUrlContent
+    [string]$patcherFile, [string]$patcherFileTempFlag = GetPatcherFile $patcherPathOrUrlContent
     # [System.Collections.Hashtable]$variables = GetVariables $variablesContent
     # DetectFilesAndPatternsAndPatch $patcherFile $targetsAndPatternsContent $variables
     # AddToHosts $hostsContent
@@ -962,6 +964,14 @@ try {
     CreateAllFilesFromBase64 $createFilesFromBase64Content
 
 
+    # Delete patcher or template files if it downloaded to temp file
+    if ($patcherFileTempFlag -eq $fileIsTempFlag) {
+        Remove-Item $patcherFile
+    }
+
+    if ($templateFileTempFlag -eq $fileIsTempFlag) {
+        Remove-Item $fullTemplatePath
+    }
 } catch {
     Write-Error $_.Exception.Message
     exit 1
