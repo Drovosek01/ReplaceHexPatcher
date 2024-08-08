@@ -456,6 +456,35 @@ function GetPathsForExe {
 
 <#
 .DESCRIPTION
+Get lines patterns for paths for exe-files
+and remove all rules for path to exe-file
+#>
+function RemoveBlockFilesFromFirewall {
+    param (
+        [Parameter(Mandatory)]
+        [string]$content
+    )
+    
+    if (-Not (DoWeHaveAdministratorPrivileges)) {
+        throw "For modify Firewall rules need Administrator privileges, but this script not have it.`nRelaunch script with admins privileges"
+        exit 1
+    }
+
+    if ($content.Count -eq 0) {
+        return
+    }
+
+    [string[]]$exePaths = GetPathsForExe -content $content
+
+    # Perhaps it is better to delete only the blocking rules, and the rules allowing access should not be touched (left)
+    # But I have never had such a task.
+    # However, it is easy to do this by changing the code Where-Object in pipe in method RemoveFilesFromFirewall
+    RemoveFilesFromFirewall -exePaths $exePaths
+}
+
+
+<#
+.DESCRIPTION
 Get string array with paths to exe-files
 and check if exist rule for this path
 and delete rule if exist
@@ -466,12 +495,17 @@ function RemoveFilesFromFirewall {
         [string[]]$exePaths
     )
     
-    if ($exePaths.Length -eq 0) {
+    if ($exePaths.Count -eq 0) {
         return
     } else {
-        [Microsoft.Management.Infrastructure.CimInstance[]]$existRulesForExes = Get-NetFirewallApplicationFilter | Where-Object { $_.Program -in $exePaths } | Get-NetFirewallRule
-        if ($existRulesForExes.Length -gt 0) {
-            $existRulesForExes | Remove-NetFirewallRule
+        try {
+            [Microsoft.Management.Infrastructure.CimInstance[]]$existRulesForExes = Get-NetFirewallApplicationFilter | Where-Object { $_.Program -in $exePaths } | Get-NetFirewallRule
+            if ($existRulesForExes.Length -gt 0) {
+                $existRulesForExes | Remove-NetFirewallRule
+            }
+        }
+        catch {
+            Write-Error "Error when search and removing rules from Firewall"
         }
     }
 }
@@ -493,6 +527,10 @@ function BlockFilesWithFirewall {
     if (-Not (DoWeHaveAdministratorPrivileges)) {
         throw "For modify Firewall rules need Administrator privileges, but this script not have it.`nRelaunch script with admins privileges"
         exit 1
+    }
+
+    if ($content.Count -eq 0) {
+        return
     }
 
     [string[]]$exePaths = GetPathsForExe -content $content
@@ -1060,7 +1098,8 @@ try {
     # [string[]]$deleteNeedContent = (ExtractContent $cleanedTemplate "files_or_folders_delete")
     # [string[]]$createFilesFromTextContent = ExtractContent $cleanedTemplate "file_create_from_text" -saveEmptyLines -several
     # [string[]]$createFilesFromBase64Content = ExtractContent $cleanedTemplate "file_create_from_base64" -saveEmptyLines -several
-    [string]$firewallBlockContent = ExtractContent $cleanedTemplate "firewall_block"
+    # [string]$firewallBlockContent = ExtractContent $cleanedTemplate "firewall_block"
+    [string]$firewallRemoveBlockContent = ExtractContent $cleanedTemplate "firewall_remove_block"
 
     [string]$patcherFile, [string]$patcherFileTempFlag = GetPatcherFile $patcherPathOrUrlContent
     # [System.Collections.Hashtable]$variables = GetVariables $variablesContent
@@ -1069,7 +1108,8 @@ try {
     # DeleteFilesOrFolders $deleteNeedContent[0]
     # CreateAllFilesFromText $createFilesFromTextContent
     # CreateAllFilesFromBase64 $createFilesFromBase64Content
-    BlockFilesWithFirewall $firewallBlockContent
+    # BlockFilesWithFirewall $firewallBlockContent
+    RemoveBlockFilesFromFirewall $firewallRemoveBlockContent
     
 
     # Delete patcher or template files if it downloaded to temp file
