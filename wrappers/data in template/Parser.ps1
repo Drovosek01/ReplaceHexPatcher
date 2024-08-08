@@ -456,6 +456,29 @@ function GetPathsForExe {
 
 <#
 .DESCRIPTION
+Get string array with paths to exe-files
+and check if exist rule for this path
+and delete rule if exist
+#>
+function RemoveFilesFromFirewall {
+    param (
+        [Parameter(Mandatory)]
+        [string[]]$exePaths
+    )
+    
+    if ($exePaths.Length -eq 0) {
+        return
+    } else {
+        [Microsoft.Management.Infrastructure.CimInstance[]]$existRulesForExes = Get-NetFirewallApplicationFilter | Where-Object { $_.Program -in $exePaths } | Get-NetFirewallRule
+        if ($existRulesForExes.Length -gt 0) {
+            $existRulesForExes | Remove-NetFirewallRule
+        }
+    }
+}
+
+
+<#
+.DESCRIPTION
 Get array with string of paths to exe-files or folders with files
 And add rules to Windows Firewall for block all connections for give exe-files
 without duplication firewall rules
@@ -474,17 +497,14 @@ function BlockFilesWithFirewall {
 
     [string[]]$exePaths = GetPathsForExe -content $content
 
-    $rulesFirewall = Get-NetFirewallRule
+    # deduplication rules - remove existing rules for same exes before block exe
+    RemoveFilesFromFirewall -exePaths $exePaths
 
     foreach ($line in $exePaths) {
         # Trim line is important because end line include \n
         $line = $line.Trim()
 
         [string]$ruleName = "Blocked $line"
-
-        # Remove all rules with same name
-        $existRules = $rulesFirewall | Where-Object { $_.DisplayName -eq $ruleName }
-        $existRules | Remove-NetFirewallRule
 
         # Block all (Inbound and Outbound) network traffic for .exe
         [void](New-NetFirewallRule -DisplayName $ruleName -Direction Inbound -Program $line -Action Block -Profile Any)
