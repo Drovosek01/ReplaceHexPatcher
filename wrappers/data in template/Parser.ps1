@@ -408,6 +408,92 @@ function Move-ToRecycleBin {
 
 
 <#
+.DESCRIPTION
+Get array with string of paths to exe-files or folders with files
+And extract paths to exe-files from given folders
+If folder path end with '*' it mean get paths for all exe files include all subfolders (recursive)
+If folder path end with '*.exe' it mean get paths for all exe files only from this folder (without subfolders)
+
+Return array strings with paths only for exe-files
+#>
+function GetPathsForExe {
+    [OutputType([string[]])]
+    param (
+        [Parameter(Mandatory)]
+        [string]$content
+    )
+
+    [string]$cleanedContent = $content.Clone()
+    [System.Collections.ArrayList]$resultLines = New-Object System.Collections.ArrayList
+    [string]$exeFilesPattern = '*.exe'
+    
+    # replace variables with variables values in all current content
+    foreach ($key in $variables.Keys) {
+        $cleanedContent = $cleanedContent.Replace($key, $variables[$key])
+    }
+    $cleanedContent = $content.Trim()
+
+    foreach ($line in $cleanedContent -split "\n") {
+        # Trim line is important because end line include \n
+        $line = $line.Trim()
+
+        if ($line.EndsWith("\$exeFilesPattern")) {
+            [string]$folderPath = $line.Replace("\$exeFilesPattern", '')
+            [string[]]$filesFromFolder = Get-ChildItem $folderPath -Filter $exeFilesPattern | ForEach-Object { $_.FullName }
+            $filesFromFolder | ForEach-Object { [void]($resultLines.Add($_)) }
+        } elseif ($line.EndsWith('\*')) {
+            [string]$folderPath = $line.Replace('\*', '')
+            [string[]]$filesFromFolder = Get-ChildItem $folderPath -Filter $exeFilesPattern -Recurse | ForEach-Object { $_.FullName }
+            $filesFromFolder | ForEach-Object { [void]($resultLines.Add($_)) }
+        } else {
+            [void]($resultLines.Add($line))
+        }
+    }
+
+    return $resultLines.ToArray()
+}
+
+
+<#
+.DESCRIPTION
+Get array with string of paths to exe-files or folders with files
+And add rules to Windows Firewall for block all connections for give exe-files
+without duplication firewall rules
+without check if exe-files exist
+#>
+function BlockFilesWithFirewall {
+    param (
+        [Parameter(Mandatory)]
+        [string]$content
+    )
+    
+    if (-Not (DoWeHaveAdministratorPrivileges)) {
+        throw "For modify Firewall rules need Administrator privileges, but this script not have it.`nRelaunch script with admins privileges"
+        exit 1
+    }
+
+    [string[]]$exePaths = GetPathsForExe -content $content
+
+    $rulesFirewall = Get-NetFirewallRule
+
+    foreach ($line in $exePaths) {
+        # Trim line is important because end line include \n
+        $line = $line.Trim()
+
+        [string]$ruleName = "Blocked $line"
+
+        # Remove all rules with same name
+        $existRules = $rulesFirewall | Where-Object { $_.DisplayName -eq $ruleName }
+        $existRules | Remove-NetFirewallRule
+
+        # Block all (Inbound and Outbound) network traffic for .exe
+        [void](New-NetFirewallRule -DisplayName $ruleName -Direction Inbound -Program $line -Action Block -Profile Any)
+        [void](New-NetFirewallRule -DisplayName $ruleName -Direction Outbound -Program $line -Action Block -Profile Any)
+    }
+}
+
+
+<#
 .SYNOPSIS
 Convert given text to base64 string or bytes array and return it
 #>
@@ -947,13 +1033,14 @@ try {
     [string]$fullTemplatePath, [string]$templateFileTempFlag = GetTemplateFile $templatePath
     [string]$cleanedTemplate = CleanTemplate $fullTemplatePath
 
-    # [string]$patcherPathOrUrlContent = ExtractContent $cleanedTemplate "patcher_path_or_url"
+    [string]$patcherPathOrUrlContent = ExtractContent $cleanedTemplate "patcher_path_or_url"
     # [string]$variablesContent = ExtractContent $cleanedTemplate "variables"
     # [string]$targetsAndPatternsContent = ExtractContent $cleanedTemplate "targets_and_patterns"
     # [string]$hostsContent = ExtractContent $cleanedTemplate "hosts_add"
     # [string[]]$deleteNeedContent = (ExtractContent $cleanedTemplate "files_or_folders_delete")
     # [string[]]$createFilesFromTextContent = ExtractContent $cleanedTemplate "file_create_from_text" -saveEmptyLines -several
-    [string[]]$createFilesFromBase64Content = ExtractContent $cleanedTemplate "file_create_from_base64" -saveEmptyLines -several
+    # [string[]]$createFilesFromBase64Content = ExtractContent $cleanedTemplate "file_create_from_base64" -saveEmptyLines -several
+    [string]$firewallBlockContent = ExtractContent $cleanedTemplate "firewall_block"
 
     [string]$patcherFile, [string]$patcherFileTempFlag = GetPatcherFile $patcherPathOrUrlContent
     # [System.Collections.Hashtable]$variables = GetVariables $variablesContent
@@ -961,8 +1048,9 @@ try {
     # AddToHosts $hostsContent
     # DeleteFilesOrFolders $deleteNeedContent[0]
     # CreateAllFilesFromText $createFilesFromTextContent
-    CreateAllFilesFromBase64 $createFilesFromBase64Content
-
+    # CreateAllFilesFromBase64 $createFilesFromBase64Content
+    BlockFilesWithFirewall $firewallBlockContent
+    
 
     # Delete patcher or template files if it downloaded to temp file
     if ($patcherFileTempFlag -eq $fileIsTempFlag) {
