@@ -923,17 +923,32 @@ function AddToHosts {
         [string]$templateContent
     )
 
-    $needRemoveReadOnly = $false
+    [string]$cleanedContent = $templateContent.Clone().Trim()
+    
+    # replace variables with variables values in all current content
+    foreach ($key in $variables.Keys) {
+        $cleanedContent = $cleanedContent.Replace($key, $variables[$key])
+    }
+
+    [bool]$needRemoveReadOnlyAttr = $false
 
     [string]$hostsFilePath = [System.Environment]::SystemDirectory + "\drivers\etc\hosts"
     $fileAttributes = Get-Item -Path $hostsFilePath | Select-Object -ExpandProperty Attributes
 
-    [string]$contentForAddToHosts = CombineLinesForHosts $templateContent
+    [string]$contentForAddToHosts = CombineLinesForHosts $cleanedContent
+    [string]$hostsFileContent = [System.IO.File]::ReadAllText($hostsFilePath)
+
+    write-host contentForAddToHosts $contentForAddToHosts
 
     if (Test-Path $hostsFilePath 2>$null) {
+        # If required lines exist in hosts file - no need touch hosts file
+        if ($hostsFileContent.TrimEnd().EndsWith($contentForAddToHosts)) {
+            return
+        }
+        
         # If hosts file exist check if last line hosts file empty
         # and add indents from the last line hosts file to new content
-        if (isLastLineEmptyOrSpaces ([System.IO.File]::ReadAllText($hostsFilePath))) {
+        if (isLastLineEmptyOrSpaces ($hostsFileContent)) {
             $contentForAddToHosts = "`r`n" + $contentForAddToHosts
         } else {
             $contentForAddToHosts = "`r`n`r`n" + $contentForAddToHosts
@@ -941,20 +956,20 @@ function AddToHosts {
 
         # If file have attribute "read only" remove this attribute for made possible patch file
         if ($fileAttributes -band [System.IO.FileAttributes]::ReadOnly) {
-            $needRemoveReadOnly = $true
+            $needRemoveReadOnlyAttr = $true
         } else {
-            $needRemoveReadOnly = $false
+            $needRemoveReadOnlyAttr = $false
         }
 
         if (DoWeHaveAdministratorPrivileges) {
-            if ($needRemoveReadOnly) {
+            if ($needRemoveReadOnlyAttr) {
                 Set-ItemProperty -Path $hostsFilePath -Name Attributes -Value ($fileAttributes -bxor [System.IO.FileAttributes]::ReadOnly)
             }
             Add-Content -Value $contentForAddToHosts -Path $hostsFilePath
             # Return readonly attribute if it was
-            if ($needRemoveReadOnly) {
+            if ($needRemoveReadOnlyAttr) {
                 Set-ItemProperty -Path $hostsFilePath -Name Attributes -Value ($fileAttributes -bor [System.IO.FileAttributes]::ReadOnly)
-                $needRemoveReadOnly = $false
+                $needRemoveReadOnlyAttr = $false
             }
         } else {
             # IMPORTANT !!!
@@ -965,7 +980,7 @@ Add-Content -Path $hostsFilePath -Value @'
 $contentForAddToHosts 
 '@
 "@
-            if ($needRemoveReadOnly) {
+            if ($needRemoveReadOnlyAttr) {
                 # If hosts file have attribute "read only" we need remove this attribute before adding lines
                 # and restore "default state" (add this attribute to hosts file) after lines to hosts was added
                 $command = "Set-ItemProperty -Path '$hostsFilePath' -Name Attributes -Value ('$fileAttributes' -bxor [System.IO.FileAttributes]::ReadOnly)" `
@@ -979,7 +994,6 @@ $contentForAddToHosts
     } else {
         Start-Process powershell -Verb RunAs -ArgumentList "-NoProfile -WindowStyle Hidden -Command `"Set-Content -Value `"$contentForAddToHosts`" -Path `"$hostsFilePath`"`""
     }
-
 }
 
 
@@ -1091,25 +1105,25 @@ try {
     [string]$fullTemplatePath, [string]$templateFileTempFlag = GetTemplateFile $templatePath
     [string]$cleanedTemplate = CleanTemplate $fullTemplatePath
 
-    [string]$patcherPathOrUrlContent = ExtractContent $cleanedTemplate "patcher_path_or_url"
+    # [string]$patcherPathOrUrlContent = ExtractContent $cleanedTemplate "patcher_path_or_url"
     # [string]$variablesContent = ExtractContent $cleanedTemplate "variables"
     # [string]$targetsAndPatternsContent = ExtractContent $cleanedTemplate "targets_and_patterns"
-    # [string]$hostsContent = ExtractContent $cleanedTemplate "hosts_add"
+    [string]$hostsContent = ExtractContent $cleanedTemplate "hosts_add"
     # [string[]]$deleteNeedContent = (ExtractContent $cleanedTemplate "files_or_folders_delete")
     # [string[]]$createFilesFromTextContent = ExtractContent $cleanedTemplate "file_create_from_text" -saveEmptyLines -several
     # [string[]]$createFilesFromBase64Content = ExtractContent $cleanedTemplate "file_create_from_base64" -saveEmptyLines -several
     # [string]$firewallBlockContent = ExtractContent $cleanedTemplate "firewall_block"
-    [string]$firewallRemoveBlockContent = ExtractContent $cleanedTemplate "firewall_remove_block"
+    # [string]$firewallRemoveBlockContent = ExtractContent $cleanedTemplate "firewall_remove_block"
 
-    [string]$patcherFile, [string]$patcherFileTempFlag = GetPatcherFile $patcherPathOrUrlContent
+    # [string]$patcherFile, [string]$patcherFileTempFlag = GetPatcherFile $patcherPathOrUrlContent
     # [System.Collections.Hashtable]$variables = GetVariables $variablesContent
     # DetectFilesAndPatternsAndPatch $patcherFile $targetsAndPatternsContent $variables
-    # AddToHosts $hostsContent
+    AddToHosts $hostsContent
     # DeleteFilesOrFolders $deleteNeedContent[0]
     # CreateAllFilesFromText $createFilesFromTextContent
     # CreateAllFilesFromBase64 $createFilesFromBase64Content
     # BlockFilesWithFirewall $firewallBlockContent
-    RemoveBlockFilesFromFirewall $firewallRemoveBlockContent
+    # RemoveBlockFilesFromFirewall $firewallRemoveBlockContent
     
 
     # Delete patcher or template files if it downloaded to temp file
