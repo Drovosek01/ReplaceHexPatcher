@@ -398,19 +398,28 @@ on.more.time
     set "IS_DIR="
     echo %~a1 | find "d" >nul 2>&1
     if %errorlevel% NEQ 0 (
+        rem Block in firewall only given file path
         call :set_filename %1
         set "IS_DIR=FALSE"
+        rem remove existing firewall rules for file
+        powershell -NoLogo -NoProfile -ExecutionPolicy Bypass -Command "$existRulesForExes = Get-NetFirewallApplicationFilter | Where-Object { $_.Program -in '!file!'' } | Get-NetFirewallRule; if ($existRulesForExes.Length -gt 0) { $existRulesForExes | Remove-NetFirewallRule }"
         netsh advfirewall firewall add rule name="Blocked !file!" dir=in action=block program="!file!" enable=yes profile=any >nul 2>&1
         netsh advfirewall firewall add rule name="Blocked !file!" dir=out action=block program="!file!" enable=yes profile=any >nul 2>&1
     ) else (
         set "IS_DIR=TRUE"
         if %3 == "FALSE" (
+            rem Block in firewall all files with extension only in given folder
             for %%G in (%1*%2) do (
+                rem remove existing firewall rules for file
+                powershell -NoLogo -NoProfile -ExecutionPolicy Bypass -Command "$existRulesForExes = Get-NetFirewallApplicationFilter | Where-Object { $_.Program -in '%%G'' } | Get-NetFirewallRule; if ($existRulesForExes.Length -gt 0) { $existRulesForExes | Remove-NetFirewallRule }"
                 netsh advfirewall firewall add rule name="Blocked %%G" dir=in action=block program="%%G" enable=yes profile=any >nul 2>&1
                 netsh advfirewall firewall add rule name="Blocked %%G" dir=out action=block program="%%G" enable=yes profile=any >nul 2>&1
             )
         ) else (
+            rem Block in firewall all files with extension in given folder and all subfolders recursive
             for /r %%G in (%1*%2) do (
+                rem remove existing firewall rules for file
+                powershell -NoLogo -NoProfile -ExecutionPolicy Bypass -Command "$existRulesForExes = Get-NetFirewallApplicationFilter | Where-Object { $_.Program -in '%%G'' } | Get-NetFirewallRule; if ($existRulesForExes.Length -gt 0) { $existRulesForExes | Remove-NetFirewallRule }"
                 netsh advfirewall firewall add rule name="Blocked %%G" dir=in action=block program="%%G" enable=yes profile=any >nul 2>&1
                 netsh advfirewall firewall add rule name="Blocked %%G" dir=out action=block program="%%G" enable=yes profile=any >nul 2>&1
             )
