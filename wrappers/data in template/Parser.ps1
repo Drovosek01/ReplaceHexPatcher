@@ -1,4 +1,4 @@
-param (
+﻿param (
     [Parameter(Mandatory)]
     [string]$templatePath
 )
@@ -20,7 +20,7 @@ $comments = @(';', '::')
 
 # Other flags for code
 [string]$fileIsTempFlag = 'fileIsTemp'
-
+    
 [string]$localhostIP = '127.0.0.1'
 [string]$zeroIP = '0.0.0.0'
 
@@ -115,7 +115,7 @@ function RemoveEmptyLines {
     [string]$endLinesCurrent = ''
     [string[]]$contentLines = $content -split "`r`n|`n"
     [string]$endLinesResult = ''
-
+    
     $endLinesCurrent = GetTypeEndLines -content $content
     
     # set type of end lines for result text
@@ -955,7 +955,7 @@ function AddToHosts {
         if ($hostsFileContent.TrimEnd().EndsWith($contentForAddToHosts)) {
             return
         }
-        
+
         # If hosts file exist check if last line hosts file empty
         # and add indents from the last line hosts file to new content
         if (isLastLineEmptyOrSpaces ($hostsFileContent)) {
@@ -1114,6 +1114,51 @@ $resultContent
 
 
 <#
+.DESCRIPTION
+Handle content from template like .reg file
+and apply this .reg file to Windows Registry
+#>
+function RegistryFileApply {
+    param (
+        [Parameter(Mandatory)]
+        [string]$content
+    )
+
+    [string]$cleanedContent = $content.Clone().Trim()
+    
+    # replace variables with variables values in all current content
+    foreach ($key in $variables.Keys) {
+        $cleanedContent = $cleanedContent.Replace($key, $variables[$key])
+    }
+
+    [string]$regFileStart = 'Windows Registry Editor Version 5.00'
+    
+    [string]$tempFile = [System.IO.Path]::GetTempFileName() + ".reg"
+
+    [string]$endLinesContent = GetTypeEndLines -content $content
+
+    try {
+        if ($endLinesContent -eq "`n") {
+            $cleanedContent = ($cleanedContent -replace "`n","`r`n")
+        }
+
+        if (-not ($cleanedContent.StartsWith($regFileStart))) {
+            $cleanedContent = $regFileStart + "`r`n" + $cleanedContent
+        }
+
+        # Important that registry file be with CRLF ends of lines and with UTF-16 LE BOM (it Unicode) encoding
+        $cleanedContent | Out-File -FilePath $tempFile -Encoding unicode -Force
+
+        reg.exe import $tempFile 2>$null
+        Remove-Item -Path $tempFile -Force -ErrorAction Stop
+    }
+    catch {
+        Write-Error "Error when trying modify Registry"
+    }
+}
+
+
+<#
 .SYNOPSIS
 Extract variables and values from give content and return hashtable with it
 #>
@@ -1225,23 +1270,25 @@ try {
     # [string]$variablesContent = ExtractContent $cleanedTemplate "variables"
     # [string]$targetsAndPatternsContent = ExtractContent $cleanedTemplate "targets_and_patterns"
     # [string]$hostsAddContent = ExtractContent $cleanedTemplate "hosts_add"
-    [string]$hostsRemoveContent = ExtractContent $cleanedTemplate "hosts_remove"
+    # [string]$hostsRemoveContent = ExtractContent $cleanedTemplate "hosts_remove"
     # [string[]]$deleteNeedContent = (ExtractContent $cleanedTemplate "files_or_folders_delete")
     # [string[]]$createFilesFromTextContent = ExtractContent $cleanedTemplate "file_create_from_text" -saveEmptyLines -several
     # [string[]]$createFilesFromBase64Content = ExtractContent $cleanedTemplate "file_create_from_base64" -saveEmptyLines -several
     # [string]$firewallBlockContent = ExtractContent $cleanedTemplate "firewall_block"
     # [string]$firewallRemoveBlockContent = ExtractContent $cleanedTemplate "firewall_remove_block"
+    [string]$registryModifyContent = ExtractContent $cleanedTemplate "registry_file"
 
     # [string]$patcherFile, [string]$patcherFileTempFlag = GetPatcherFile $patcherPathOrUrlContent
     # [System.Collections.Hashtable]$variables = GetVariables $variablesContent
     # DetectFilesAndPatternsAndPatch $patcherFile $targetsAndPatternsContent $variables
     # AddToHosts $hostsAddContent
-    RemoveFromHosts $hostsRemoveContent
+    # RemoveFromHosts $hostsRemoveContent
     # DeleteFilesOrFolders $deleteNeedContent[0]
     # CreateAllFilesFromText $createFilesFromTextContent
     # CreateAllFilesFromBase64 $createFilesFromBase64Content
     # BlockFilesWithFirewall $firewallBlockContent
     # RemoveBlockFilesFromFirewall $firewallRemoveBlockContent
+    RegistryFileApply $registryModifyContent
     
 
     # Delete patcher or template files if it downloaded to temp file
