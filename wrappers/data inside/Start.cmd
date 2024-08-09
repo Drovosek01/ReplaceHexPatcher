@@ -6,7 +6,7 @@ rem =====
 
 reg query "HKU\S-1-5-19\Environment" >nul 2>&1
 if %errorlevel% NEQ 0 (
-    powershell.exe -noprofile "Start-Process '%~f0' -Verb RunAs"
+    powershell.exe -ExecutionPolicy Bypass -noprofile "Start-Process '%~f0' -Verb RunAs"
     exit
 )
 
@@ -185,7 +185,7 @@ rem =====
     ) else (
         call :get_temp_filename_uniq
         set "patcher_path=!temp_filename_uniq!"
-        powershell -Command "(New-Object System.Net.WebClient).DownloadFile('%patcher_url_if_need%','!patcher_path!')"
+        powershell -ExecutionPolicy Bypass -Command "(New-Object System.Net.WebClient).DownloadFile('%patcher_url_if_need%','!patcher_path!')"
     )
     exit /b
 
@@ -302,9 +302,9 @@ echo   GBS7FK6R5M08A0QJ59X2V3VEER4TA348065RQ967481KFG"
     rem change end of lines it created text file
     rem About conver CRLF and LF on Powershell - https://stackoverflow.com/a/48919146
     if %2 == "CRLF" (
-        powershell -NoProfile -command "((Get-Content '%1') -join \"`r`n\") + \"`r`n\" | Set-Content -NoNewline '%1'"
+        powershell -ExecutionPolicy Bypass -NoProfile -command "((Get-Content '%1') -join \"`r`n\") + \"`r`n\" | Set-Content -NoNewline '%1'"
     ) else (
-        powershell -NoProfile -command "((Get-Content '%1') -join \"`n\") + \"`n\" | Set-Content -NoNewline '%1'"
+        powershell -ExecutionPolicy Bypass -NoProfile -command "((Get-Content '%1') -join \"`n\") + \"`n\" | Set-Content -NoNewline '%1'"
     )
     exit /b
 
@@ -356,7 +356,7 @@ on.more.time
         )
         if !count_lines_to_hosts! EQU 0 (
             rem if all line exist in host just remove line with comment contain name_group_lines because we added in before start loop
-            powershell -ex bypass -c "&{$a = gc '%hosts_file%' -enc OEM;$a[0..($a.count-3)] |out-file '%hosts_file%' -enc OEM}"
+            powershell -ExecutionPolicy Bypass -c "&{$a = gc '%hosts_file%' -enc OEM;$a[0..($a.count-3)] |out-file '%hosts_file%' -enc OEM}"
         )
     )
 )

@@ -6,7 +6,7 @@ rem =====
 
 reg query "HKU\S-1-5-19\Environment" >nul 2>&1
 if %errorlevel% NEQ 0 (
-    powershell.exe -noprofile "Start-Process '%~f0' -Verb RunAs"
+    powershell.exe -ExecutionPolicy Bypass -noprofile "Start-Process '%~f0' -Verb RunAs"
     exit
 )
 
@@ -90,7 +90,7 @@ rem =====
     ) else (
         call :get_temp_filename_uniq
         set "patcher_path=!temp_filename_uniq!"
-        powershell -Command "(New-Object System.Net.WebClient).DownloadFile('%parser_url_if_need%','!parser_path!')"
+        powershell -ExecutionPolicy Bypass -Command "(New-Object System.Net.WebClient).DownloadFile('%parser_url_if_need%','!parser_path!')"
     )
     exit /b
 
@@ -110,7 +110,7 @@ rem =====
     ) else (
         call :get_temp_filename_uniq
         set "template_path=!temp_filename_uniq!"
-        powershell -Command "(New-Object System.Net.WebClient).DownloadFile('%template_url_if_need%','!template_path!')"
+        powershell -ExecutionPolicy Bypass -Command "(New-Object System.Net.WebClient).DownloadFile('%template_url_if_need%','!template_path!')"
     )
     exit /b
 

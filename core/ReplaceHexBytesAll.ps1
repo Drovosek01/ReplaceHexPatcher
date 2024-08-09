@@ -278,7 +278,7 @@ function SearchAndReplace-HexPatternInBinaryFile {
             # relaunch current script in separate process with Admins privileges
             $PSHost = If ($PSVersionTable.PSVersion.Major -le 5) {'PowerShell'} Else {'PwSh'}
             [string]$lastArgsForProcess = "$varNameTempFolder=`"$tempFolderForPatchedFilePath`",$varNameFoundIndexes=`"$($foundPatternsIndexes -join ' ')`""
-            Start-Process -Verb RunAs $PSHost (" -File `"$PSCommandPath`" " + ($myGlobalInvocation.Line -split '\.ps1[\s\''\"]\s*', 2)[-1] + ' ' + $lastArgsForProcess)
+            Start-Process -Verb RunAs $PSHost ("-ExecutionPolicy Bypass -File `"$PSCommandPath`" " + ($myGlobalInvocation.Line -split '\.ps1[\s\''\"]\s*', 2)[-1] + ' ' + $lastArgsForProcess)
             break
         } else {
             $fileAcl = Get-Acl "$filePath"

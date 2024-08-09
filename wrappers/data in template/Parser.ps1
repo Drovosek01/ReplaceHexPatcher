@@ -315,7 +315,7 @@ function RunPSFile {
     #   but if necessary, run others.ps1 files, then you will need to return the logic of the conditions to run as administrator
 
     $PSHost = If ($PSVersionTable.PSVersion.Major -le 5) {'PowerShell'} Else {'PwSh'}
-    $process = Start-Process $PSHost -ArgumentList "-File `"$psFile`" -filePath `"$targetFile`" -patterns", "$patterns" -PassThru -Wait
+    $process = Start-Process $PSHost -ArgumentList "-ExecutionPolicy Bypass -File `"$psFile`" -filePath `"$targetFile`" -patterns", "$patterns" -PassThru -Wait
 
     if ($process.ExitCode -gt 0) {
         throw "Something happened wrong when patching file $targetFile"
@@ -683,10 +683,10 @@ function CreateFilesFromData {
             # so WriteAllBytes to temp file then move temp file with admin privileges
             $tempFile = [System.IO.Path]::GetTempFileName()
             [System.IO.File]::WriteAllBytes($tempFile, $targetContent)
-            $processId = Start-Process powershell -Verb RunAs -PassThru -Wait -ArgumentList "-NoProfile -WindowStyle Hidden -Command `"Copy-Item -Path '$tempFile' -Destination '$targetPath' -Force;Remove-Item '$tempFile'`""
+            $processId = Start-Process powershell -Verb RunAs -PassThru -Wait -ArgumentList "-ExecutionPolicy Bypass -NoProfile -WindowStyle Hidden -Command `"Copy-Item -Path '$tempFile' -Destination '$targetPath' -Force;Remove-Item '$tempFile'`""
         }
         else {
-            $processId = Start-Process powershell -Verb RunAs -PassThru -Wait -ArgumentList "-NoProfile -WindowStyle Hidden -Command `"New-Item -Path `"$targetPath`" -ItemType File -Force;Set-Content -Value `"$targetContent`" -Path `"$targetPath`" -NoNewline`""
+            $processId = Start-Process powershell -Verb RunAs -PassThru -Wait -ArgumentList "-ExecutionPolicy Bypass -NoProfile -WindowStyle Hidden -Command `"New-Item -Path `"$targetPath`" -ItemType File -Force;Set-Content -Value `"$targetContent`" -Path `"$targetPath`" -NoNewline`""
         }
     
         if ($processId.ExitCode -gt 0) {
@@ -850,7 +850,7 @@ Remove-Item -Path '$item' -Recurse -Force
 
     if ($deleteCommand.Length -gt 0) {
         $PSHost = If ($PSVersionTable.PSVersion.Major -le 5) {'PowerShell'} Else {'PwSh'}
-        $processId = Start-Process $PSHost -Verb RunAs -ArgumentList "-NoProfile -WindowStyle Hidden -Command `"$deleteCommand`"" -PassThru -Wait
+        $processId = Start-Process $PSHost -Verb RunAs -ArgumentList "-ExecutionPolicy Bypass -NoProfile -WindowStyle Hidden -Command `"$deleteCommand`"" -PassThru -Wait
         
         if ($processId.ExitCode -gt 0) {
             throw "Something happened wrong when process remove files or folders with admins privileges"
@@ -999,7 +999,7 @@ $contentForAddToHosts
                 + "`n" `
                 + "Set-ItemProperty -Path '$hostsFilePath' -Name Attributes -Value ('$fileAttributes' -bor [System.IO.FileAttributes]::ReadOnly)"
             }
-            Start-Process powershell -Verb RunAs -ArgumentList "-NoProfile -WindowStyle Hidden -Command `"$command`""
+            Start-Process powershell -Verb RunAs -ArgumentList "-ExecutionPolicy Bypass -NoProfile -WindowStyle Hidden -Command `"$command`""
         }
     } else {
         $command = @"
@@ -1008,7 +1008,7 @@ $contentForAddToHosts
 '@
 | Out-File -FilePath $hostsFilePath -Encoding utf8 -Force
 "@
-        Start-Process powershell -Verb RunAs -ArgumentList "-NoProfile -WindowStyle Hidden -Command `"$command`""
+        Start-Process powershell -Verb RunAs -ArgumentList "-ExecutionPolicy Bypass -NoProfile -WindowStyle Hidden -Command `"$command`""
     }
 }
 
@@ -1108,7 +1108,7 @@ $resultContent
             + "`n" `
             + "Set-ItemProperty -Path '$hostsFilePath' -Name Attributes -Value ('$fileAttributes' -bor [System.IO.FileAttributes]::ReadOnly)"
         }
-        Start-Process powershell -Verb RunAs -ArgumentList "-NoProfile -WindowStyle Hidden -Command `"$command`""
+        Start-Process powershell -Verb RunAs -ArgumentList "-ExecutionPolicy Bypass -NoProfile -WindowStyle Hidden -Command `"$command`""
     }
 }
 
@@ -1207,7 +1207,7 @@ function PowershellCodeExecute {
         } else {
             $processId = Start-Process -FilePath $PSHost `
                 -Verb RunAs `
-                -ArgumentList "-NoProfile -File `"$tempFile`"" `
+                -ArgumentList "-ExecutionPolicy Bypass -NoProfile -File `"$tempFile`"" `
                 -PassThru `
                 -Wait
         
@@ -1259,7 +1259,7 @@ function CmdCodeExecute {
 
         [System.Collections.Hashtable]$processArgs = @{
             FilePath = "cmd.exe"
-            ArgumentList = "/c `"$tempFile`""
+            ArgumentList = "-ExecutionPolicy Bypass /c `"$tempFile`""
             NoNewWindow = $true
             Wait = $true
         }
