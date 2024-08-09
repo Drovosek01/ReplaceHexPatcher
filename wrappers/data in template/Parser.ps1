@@ -881,9 +881,6 @@ function CombineLinesForHosts {
         [string]$templateContent
     )
     
-    [string]$localhostIP = '127.0.0.1'
-    [string]$zeroIP = '0.0.0.0'
-    
     [string]$contentForAddToHosts = ''
 
     [string[]]$templateContentLines = $templateContent -split "\n"
@@ -940,8 +937,6 @@ function AddToHosts {
     [string]$contentForAddToHosts = CombineLinesForHosts $cleanedContent
     [string]$hostsFileContent = [System.IO.File]::ReadAllText($hostsFilePath)
 
-    write-host contentForAddToHosts $contentForAddToHosts
-
     if (Test-Path $hostsFilePath 2>$null) {
         # If required lines exist in hosts file - no need touch hosts file
         if ($hostsFileContent.TrimEnd().EndsWith($contentForAddToHosts)) {
@@ -967,7 +962,7 @@ function AddToHosts {
             if ($needRemoveReadOnlyAttr) {
                 Set-ItemProperty -Path $hostsFilePath -Name Attributes -Value ($fileAttributes -bxor [System.IO.FileAttributes]::ReadOnly)
             }
-            Add-Content -Value $contentForAddToHosts -Path $hostsFilePath
+            Add-Content -Value $contentForAddToHosts -Path $hostsFilePath -Force
             # Return readonly attribute if it was
             if ($needRemoveReadOnlyAttr) {
                 Set-ItemProperty -Path $hostsFilePath -Name Attributes -Value ($fileAttributes -bor [System.IO.FileAttributes]::ReadOnly)
@@ -978,7 +973,7 @@ function AddToHosts {
             # Do not formate this command and not re-write it
             # it need for add multiline string to Start-Process command
             $command = @"
-Add-Content -Path $hostsFilePath -Value @'
+Add-Content -Path $hostsFilePath -Force -Value @'
 $contentForAddToHosts 
 '@
 "@
@@ -994,7 +989,13 @@ $contentForAddToHosts
             Start-Process powershell -Verb RunAs -ArgumentList "-NoProfile -WindowStyle Hidden -Command `"$command`""
         }
     } else {
-        Start-Process powershell -Verb RunAs -ArgumentList "-NoProfile -WindowStyle Hidden -Command `"Set-Content -Value `"$contentForAddToHosts`" -Path `"$hostsFilePath`"`""
+        $command = @"
+@'
+$contentForAddToHosts 
+'@
+| Out-File -FilePath $hostsFilePath -Encoding utf8 -Force
+"@
+        Start-Process powershell -Verb RunAs -ArgumentList "-NoProfile -WindowStyle Hidden -Command `"$command`""
     }
 }
 
