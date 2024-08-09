@@ -74,6 +74,24 @@ function CleanTemplate {
 
 
 <#
+.SYNOPSIS
+Detect type end lines from given text
+#>
+function GetTypeEndLines {
+    param (
+        [Parameter(Mandatory)]
+        [string]$content
+    )
+    
+    if ($content.IndexOf("`r`n") -gt 0) {
+        return "`r`n"
+    } else {
+        return "`n"
+    }
+}
+
+
+<#
 .DESCRIPTION
 Remove empty lines from given string
 and convert end lines if need
@@ -98,12 +116,7 @@ function RemoveEmptyLines {
     [string[]]$contentLines = $content -split "`r`n|`n"
     [string]$endLinesResult = ''
 
-    # detect type end lines from given text
-    if ($content.IndexOf("`r`n") -gt 0) {
-        $endLinesCurrent = "`r`n"
-    } else {
-        $endLinesCurrent = "`n"
-    }
+    $endLinesCurrent = GetTypeEndLines -content $content
     
     # set type of end lines for result text
     if ($endLinesForResult -eq 'CRLF') {
