@@ -1,4 +1,4 @@
-﻿param (
+param (
     [Parameter(Mandatory)]
     [string]$templatePath
 )
@@ -1160,14 +1160,16 @@ function RegistryFileApply {
 
 <#
 .DESCRIPTION
-Create temp .ps1 file with code from template and execute it with admin rights
+Create temp .ps1 file with code from template
+and execute it with admin rights if need
 Then remove temp file
 #>
 function PowershellCodeExecute {
     param (
         [Parameter(Mandatory)]
         [string]$content,
-        [switch]$hideExternalOutput = $false
+        [switch]$hideExternalOutput = $false,
+        [switch]$needRunAS = $false
     )
 
     [string]$cleanedContent = $content.Clone().Trim()
@@ -1185,7 +1187,7 @@ function PowershellCodeExecute {
         $PSHost = If ($PSVersionTable.PSVersion.Major -le 5) {'PowerShell'} Else {'PwSh'}
     
         # execute file .ps1 with admin rights if exist else request admins rights
-        if (DoWeHaveAdministratorPrivileges) {
+        if ((DoWeHaveAdministratorPrivileges) -or (-not $needRunAS)) {
             [string]$nullFile = [System.IO.Path]::GetTempFileName()
             
             [System.Collections.Hashtable]$processArgs = @{
@@ -1210,7 +1212,7 @@ function PowershellCodeExecute {
                 -Wait
         
             if ($processId.ExitCode -gt 0) {
-                throw "Something happened wrong when patching file $tempFile"
+                throw "Something happened wrong when execute Powershell code in file $tempFile"
             }
         }
     
