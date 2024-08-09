@@ -11,7 +11,7 @@
 # Same splitter like in core script
 $patternSplitters = @('/','\','|')
 
-$comments = @(';', '::')
+$comments = @(';;')
 
 # Text - flags in parse sections
 [string]$notModifyFlag = 'NOT MODIFY IT'
@@ -1159,6 +1159,70 @@ function RegistryFileApply {
 
 
 <#
+.DESCRIPTION
+Create temp .ps1 file with code from template and execute it with admin rights
+Then remove temp file
+#>
+function PowershellCodeExecute {
+    param (
+        [Parameter(Mandatory)]
+        [string]$content,
+        [switch]$hideExternalOutput = $false
+    )
+
+    [string]$cleanedContent = $content.Clone().Trim()
+    
+    # replace variables with variables values in all current content
+    foreach ($key in $variables.Keys) {
+        $cleanedContent = $cleanedContent.Replace($key, $variables[$key])
+    }
+    
+    try {
+        [string]$tempFile = [System.IO.Path]::GetTempFileName() + ".ps1"
+        
+        # write code from template to temp .ps1 file
+        $cleanedContent | Out-File -FilePath $tempFile -Encoding utf8 -Force
+        $PSHost = If ($PSVersionTable.PSVersion.Major -le 5) {'PowerShell'} Else {'PwSh'}
+    
+        # execute file .ps1 with admin rights if exist else request admins rights
+        if (DoWeHaveAdministratorPrivileges) {
+            [string]$nullFile = [System.IO.Path]::GetTempFileName()
+            
+            [System.Collections.Hashtable]$processArgs = @{
+                FilePath = $PSHost.Clone()
+                ArgumentList = "-NoProfile -ExecutionPolicy Bypass -File `"$tempFile`""
+                NoNewWindow = $true
+                Wait = $true
+            }
+
+            if ($hideExternalOutput) {
+                $processArgs.RedirectStandardOutput = $nullFile
+            }
+
+            Start-Process @processArgs
+        
+            Remove-Item -Path $nullFile -Force -ErrorAction Stop
+        } else {
+            $processId = Start-Process -FilePath $PSHost `
+                -Verb RunAs `
+                -ArgumentList "-NoProfile -File `"$tempFile`"" `
+                -PassThru `
+                -Wait
+        
+            if ($processId.ExitCode -gt 0) {
+                throw "Something happened wrong when patching file $tempFile"
+            }
+        }
+    
+        Remove-Item -Path $tempFile -Force -ErrorAction Stop
+    }
+    catch {
+        Write-Error "Error while execute Powershell-code from template - " $_.Exception.Message
+    }
+}
+
+
+<#
 .SYNOPSIS
 Extract variables and values from give content and return hashtable with it
 #>
@@ -1276,7 +1340,8 @@ try {
     # [string[]]$createFilesFromBase64Content = ExtractContent $cleanedTemplate "file_create_from_base64" -saveEmptyLines -several
     # [string]$firewallBlockContent = ExtractContent $cleanedTemplate "firewall_block"
     # [string]$firewallRemoveBlockContent = ExtractContent $cleanedTemplate "firewall_remove_block"
-    [string]$registryModifyContent = ExtractContent $cleanedTemplate "registry_file"
+    # [string]$registryModifyContent = ExtractContent $cleanedTemplate "registry_file"
+    [string]$powershellCodeContent = ExtractContent $cleanedTemplate "powershell_code"
 
     # [string]$patcherFile, [string]$patcherFileTempFlag = GetPatcherFile $patcherPathOrUrlContent
     # [System.Collections.Hashtable]$variables = GetVariables $variablesContent
@@ -1288,7 +1353,9 @@ try {
     # CreateAllFilesFromBase64 $createFilesFromBase64Content
     # BlockFilesWithFirewall $firewallBlockContent
     # RemoveBlockFilesFromFirewall $firewallRemoveBlockContent
-    RegistryFileApply $registryModifyContent
+    # RegistryFileApply $registryModifyContent
+
+    PowershellCodeExecute $powershellCodeContent -hideExternalOutput
     
 
     # Delete patcher or template files if it downloaded to temp file
