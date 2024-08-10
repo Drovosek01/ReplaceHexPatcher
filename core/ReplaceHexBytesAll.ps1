@@ -285,6 +285,8 @@ function SearchAndReplace-HexPatternInBinaryFile {
             $fileAttributes = Get-Item -Path "$filePath" | Select-Object -ExpandProperty Attributes
             [string]$backupFullName = "$filePath.bak"
 
+            KillExeTasks $filePath
+
             if ($isReadOnly) {
                 Set-ItemProperty -Path "$filePath" -Name Attributes -Value ($fileAttributes -bxor [System.IO.FileAttributes]::ReadOnly)
             }
@@ -339,6 +341,8 @@ function Replace-TempPatchedFileIfExist {
     $fileAttributes = Get-Item -Path "$filePath" | Select-Object -ExpandProperty Attributes
     $fileAcl = Get-Acl "$filePath"
     [string]$backupFullName = "$filePath.bak"
+
+    KillExeTasks $filePath
     
     if ($isReadOnly) {
         Set-ItemProperty -Path "$filePath" -Name Attributes -Value ($fileAttributes -bxor [System.IO.FileAttributes]::ReadOnly)
@@ -362,6 +366,8 @@ function Replace-TempPatchedFileIfExist {
     [string]$patchedTempFile = "$tempFolderForPatchedFilePath\$fileNameOfTarget"
     if (Test-Path "$patchedTempFile") {
         Remove-Item -Path $filePath
+
+        KillExeTasks $patchedTempFile
         Move-Item -Path $patchedTempFile -Destination $filePath
         $fileAcl | Set-Acl "$filePath"
         Remove-Item "$tempFolderForPatchedFilePath"
@@ -377,6 +383,42 @@ function Replace-TempPatchedFileIfExist {
         }
 
         return $false
+    }
+}
+
+<#
+.SYNOPSIS
+Kill the process that occupies the target file
+#>
+function KillExeTasks {
+    param (
+        [Parameter(Mandatory)]
+        [string]$targetPath
+    )
+
+    if (($targetPath.Length -eq 0) -or (-not (Test-Path $targetPath))) {
+        return
+    }
+    
+    $targetName = [System.IO.Path]::GetFileNameWithoutExtension($targetPath)
+
+    $process = Get-Process -Name $targetName -ErrorAction SilentlyContinue
+
+    if ($process) {
+        try {
+            Stop-Process -Name $targetName -Force
+        }
+        catch {
+            if (-not (DoWeHaveAdministratorPrivileges)) {
+                $PSHost = If ($PSVersionTable.PSVersion.Major -le 5) {'PowerShell'} Else {'PwSh'}
+                $processId = Start-Process $PSHost -Verb RunAs -PassThru -Wait -ArgumentList "-ExecutionPolicy Bypass -NoProfile -WindowStyle Hidden -Command `"Stop-Process -Name '$targetName' -Force`""
+
+                if ($processId.ExitCode -gt 0) {
+                    throw "Something happened wrong when try kill process with target file"
+                }
+            }
+    
+        }
     }
 }
 
