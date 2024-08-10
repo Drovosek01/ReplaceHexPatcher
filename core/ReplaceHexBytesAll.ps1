@@ -429,12 +429,15 @@ try {
         $patterns = $patternsArg
     }
 
+    # The last unnamed argument can be the path to an already patched file stored in a temporary folder.
+    # This is done so as not to patch the file again (if it has already been patched) when restarting the script on behalf of the administrator.
+    # Therefore, if the last argument is the path to the file, then this is already a patched file and we just need to replace the original file with it.
     if ($lastArgs -and ($lastArgs.Count -gt 0)) {
         [string]$tempFolderPath = ''
         [int[]]$replacedPatternsIndexes = @()
-        [string[]]$lastArgsSplitted = $lastArgs[0].Split(',')
+        [string[]]$lastArgsSeparated = $lastArgs[0].Split(',')
 
-        foreach ($arg in $lastArgsSplitted) {
+        foreach ($arg in $lastArgsSeparated) {
             $varName = $arg.Split('=')[0]
             if ($varName.Trim() -eq $varNameTempFolder) {
                 $tempFolderPath = $arg.Split('=')[1]
@@ -451,7 +454,11 @@ try {
             exit 1
         }
     } else {
-        $replacedPatternsIndexes = SearchAndReplace-HexPatternInBinaryFile -filePath $filePathArg -patterns $patterns
+        if ((Test-Path variable:filePathArg) -and ($filePathArg.Length -gt 0) -and (Test-Path variable:patterns) -and ($filePathArg.Length -gt 0)) {
+            $replacedPatternsIndexes = SearchAndReplace-HexPatternInBinaryFile -filePath $filePathArg -patterns $patterns
+        } else {
+            throw "Not given path for file for patch or patterns"
+        }
     }
 
     HandleReplacedPatternsIndexes $patterns $replacedPatternsIndexes
