@@ -24,6 +24,7 @@ set "parser_path= WRITE FULL PATH HERE !!!!!!"
 
 set "template_name=template.txt"
 set "template_url_if_need=https://github.com/Drovosek01/ReplaceHexPatcher/raw/main/wrappers/data in template/template.txt"
+set "template_path= WRITE FULL PATH HERE !!!!!!"
 
 set "patcher_path=https://github.com/Drovosek01/ReplaceHexPatcher/raw/main/core/ReplaceHexBytesAll.ps1"
 set "current_dir=%~dp0"
