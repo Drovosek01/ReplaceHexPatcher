@@ -1,4 +1,4 @@
-param (
+﻿param (
     [Parameter(Mandatory)]
     [string]$templatePath,
     [string]$patcherPath
@@ -471,7 +471,7 @@ function GetPathsForExe {
     [string]$cleanedContent = $content.Clone()
     [System.Collections.ArrayList]$resultLines = New-Object System.Collections.ArrayList
     [string]$exeFilesPattern = '*.exe'
-    
+
     $cleanedContent = $content.Trim()
 
     foreach ($line in $cleanedContent -split "\n") {
@@ -1469,6 +1469,12 @@ try {
     [string]$fullTemplatePath, [string]$templateFileTempFlag = GetTemplateFile $templatePath
     [string]$cleanedTemplate = CleanTemplate $fullTemplatePath
 
+
+
+    # Get content from template file
+
+    [string]$variablesContent = ExtractContent $cleanedTemplate "variables"
+    
     [string]$patcherPathOrUrlContent = ExtractContent $cleanedTemplate "patcher_path_or_url"
     # If path or URL for patcher will passed like script argument
     # need check this argument first before check patchers lines from template  
@@ -1476,6 +1482,16 @@ try {
         $patcherPathOrUrlContent = $patcherPath + "`n" + $patcherPathOrUrlContent
     }
 
+    [string]$targetsAndPatternsContent = ExtractContent $cleanedTemplate "targets_and_patterns"
+    [string]$hostsRemoveContent = ExtractContent $cleanedTemplate "hosts_remove"
+    [string]$hostsAddContent = ExtractContent $cleanedTemplate "hosts_add"
+    [string]$deleteNeedContent = ExtractContent $cleanedTemplate "files_or_folders_delete"
+    [string[]]$createFilesFromTextContent = ExtractContent $cleanedTemplate "file_create_from_text" -saveEmptyLines -several
+    [string[]]$createFilesFromBase64Content = ExtractContent $cleanedTemplate "file_create_from_base64" -saveEmptyLines -several
+    [string]$firewallBlockContent = ExtractContent $cleanedTemplate "firewall_block"
+    [string]$firewallRemoveBlockContent = ExtractContent $cleanedTemplate "firewall_remove_block"
+    [string]$registryModifyContent = ExtractContent $cleanedTemplate "registry_file"
+    [string]$powershellCodeContent = ExtractContent $cleanedTemplate "powershell_code"
     [string]$cmdCodeContent = ExtractContent $cleanedTemplate "cmd_code"
 
 
@@ -1492,13 +1508,70 @@ try {
             "-$($_.Key) `"$($valuePath)`""
         }) -join " "
 
-        Start-Process -Verb RunAs $PSHost ("-noexit -ExecutionPolicy Bypass -File `"$PSCommandPath`" $argumentsBound")
+        Start-Process -Verb RunAs $PSHost ("-ExecutionPolicy Bypass -File `"$PSCommandPath`" $argumentsBound")
         break
+    }
+
+
+    
+    # Start use parsed data from template file
+
+    if ($variablesContent.Length -gt 0) {
+        [System.Collections.Hashtable]$variables = GetVariables $variablesContent
+    }
+
+    if ($patcherPathOrUrlContent.Length -gt 0) {
+        [string]$patcherFile, [string]$patcherFileTempFlag = GetPatcherFile $patcherPathOrUrlContent
+    }
+
+    if ($targetsAndPatternsContent.Length -gt 0) {
+        DetectFilesAndPatternsAndPatch $patcherFile $targetsAndPatternsContent $variables
+    }
+
+    if ($hostsRemoveContent.Length -gt 0) {
+        RemoveFromHosts $hostsRemoveContent
+    }
+
+    if ($hostsAddContent.Length -gt 0) {
+        AddToHosts $hostsAddContent
+    }
+
+    if ($deleteNeedContent.Length -gt 0) {
+        DeleteFilesOrFolders $deleteNeedContent
+    }
+
+    if (($createFilesFromTextContent.Count -gt 0) -and ($createFilesFromTextContent[0].Length -gt 0)) {
+        CreateAllFilesFromText $createFilesFromTextContent
+    }
+
+    if (($createFilesFromBase64Content.Count -gt 0) -and ($createFilesFromBase64Content[0].Length -gt 0)) {
+        CreateAllFilesFromBase64 $createFilesFromBase64Content
+    }
+
+    if ($firewallBlockContent.Length -gt 0) {
+        BlockFilesWithFirewall $firewallBlockContent
+    }
+
+    if ($firewallRemoveBlockContent.Length -gt 0) {
+        RemoveBlockFilesFromFirewall $firewallRemoveBlockContent
+    }
+
+    if ($registryModifyContent.Length -gt 0) {
+        RegistryFileApply $registryModifyContent
+    }
+
+    if ($powershellCodeContent.Length -gt 0) {
+        PowershellCodeExecute $powershellCodeContent -hideExternalOutput
+    }
+
+    if ($cmdCodeContent.Length -gt 0) {
+        CmdCodeExecute $cmdCodeContent -needRunAS
     }
 
     
 
     # Delete patcher or template files if it downloaded to temp file
+
     if ($patcherFileTempFlag -eq $fileIsTempFlag) {
         Remove-Item $patcherFile
     }
@@ -1513,3 +1586,7 @@ try {
 
 $watch.Stop() # stop timer
 Write-Host "Script execution time is" $watch.Elapsed # time of execution code
+
+# Pause before exit like in CMD
+Write-Host -NoNewLine 'Press any key to continue...';
+$null = $Host.UI.RawUI.ReadKey('NoEcho,IncludeKeyDown');
