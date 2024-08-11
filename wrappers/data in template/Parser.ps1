@@ -383,6 +383,7 @@ function DetectFilesAndPatternsAndPatch {
     foreach ($line in $cleanedContent -split "\n") {
         # Trim line is important because end line include \n
         $line = $line.Trim()
+
         if (Test-Path $line 2>$null) {
             if ($patternsArg.Length -gt 1) {
                 RunPSFile $patcherFile $filePathArg $patternsArg
@@ -416,7 +417,7 @@ function DetectFilesAndPatternsAndPatch {
         if ($filePathArg) {
             RunPSFile $patcherFile $filePathArg $patternsArg
         } else {
-            Write-Error "No valid targets or patterns was found"
+            Write-Error "No valid targets or patterns was found. Or target files not exist"
             exit 1
         }
     }

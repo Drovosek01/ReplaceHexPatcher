@@ -17,7 +17,7 @@ rem Init variables
 rem =====
 
 set "patcher_name=ReplaceHexBytesAll.ps1"
-set "patcher_url_if_need=https://gist.github.com/Drovosek01/9d47068365ea0bce26526ee61b23be7c/raw/581aa5312b0f99745ca55c2646d31990a93e2ee3/ReplaceHexBytesAll.ps1"
+set "patcher_url_if_need=https://github.com/Drovosek01/ReplaceHexPatcher/raw/main/core/ReplaceHexBytesAll.ps1"
 set "temp_filename_uniq="
 set "patcher_path="
 
