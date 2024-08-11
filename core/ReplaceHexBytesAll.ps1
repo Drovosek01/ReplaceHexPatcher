@@ -27,7 +27,7 @@ if ($patternsArg.Count -eq 0) {
 # GLOBAL VARIABLES
 # =====
 
-$myGlobalInvocation = $MyInvocation
+[string]$PSBoundParametersStringGlobal = ($PSBoundParameters.GetEnumerator() | ForEach-Object { "-$($_.Key) `"$($_.Value)`"" }) -join " "
 [string]$fileNameOfTarget = [System.IO.Path]::GetFileName("$filePathArg")
 [string]$tempFolderBaseName = "ReplaceHexBytesAllTmp"
 [string]$varNameTempFolder = "ReplaceHexBytesAll"
@@ -173,7 +173,7 @@ function Separate-Patterns {
         # Clean and split string with search and replace hex patterns
         [string[]]$temp = $pattern.Clone().Replace(" ","").Replace("\x","").Replace("\","/").Replace("|","/").ToUpper().Split("/")
 
-        if ($temp.Count -gt 2) {
+        if (-not ($temp.Count -eq 2)) {
             throw "Wrong pattern $pattern and $temp"
         }
 
@@ -278,7 +278,7 @@ function SearchAndReplace-HexPatternInBinaryFile {
             # relaunch current script in separate process with Admins privileges
             $PSHost = If ($PSVersionTable.PSVersion.Major -le 5) {'PowerShell'} Else {'PwSh'}
             [string]$lastArgsForProcess = "$varNameTempFolder=`"$tempFolderForPatchedFilePath`",$varNameFoundIndexes=`"$($foundPatternsIndexes -join ' ')`""
-            Start-Process -Verb RunAs $PSHost ("-ExecutionPolicy Bypass -File `"$PSCommandPath`" " + ($myGlobalInvocation.Line -split '\.ps1[\s\''\"]\s*', 2)[-1] + ' ' + $lastArgsForProcess)
+            Start-Process -Verb RunAs $PSHost ("-ExecutionPolicy Bypass -File `"$PSCommandPath`" $PSBoundParametersStringGlobal -lastArgs $lastArgsForProcess")
             break
         } else {
             $fileAcl = Get-Acl "$filePath"
