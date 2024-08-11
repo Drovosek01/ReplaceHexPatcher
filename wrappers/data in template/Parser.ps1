@@ -1441,19 +1441,24 @@ try {
 
     [string]$cmdCodeContent = ExtractContent $cleanedTemplate "cmd_code"
 
-    # [string]$patcherFile, [string]$patcherFileTempFlag = GetPatcherFile $patcherPathOrUrlContent
-    # [System.Collections.Hashtable]$variables = GetVariables $variablesContent
-    # DetectFilesAndPatternsAndPatch $patcherFile $targetsAndPatternsContent $variables
-    # AddToHosts $hostsAddContent
-    # RemoveFromHosts $hostsRemoveContent
-    # DeleteFilesOrFolders $deleteNeedContent[0]
-    # CreateAllFilesFromText $createFilesFromTextContent
-    # CreateAllFilesFromBase64 $createFilesFromBase64Content
-    # BlockFilesWithFirewall $firewallBlockContent
-    # RemoveBlockFilesFromFirewall $firewallRemoveBlockContent
-    # RegistryFileApply $registryModifyContent
-    # PowershellCodeExecute $cmdCodeContent -hideExternalOutput
-    CmdCodeExecute $cmdCodeContent -needRunAS
+
+    # Simple detection for needed admins rights:
+    # If we have data for Windows Registry or for Firewall
+    # - we 100% need Administrator privileges for apply instructions for it
+
+    if ((($hostsRemoveContent.Length -gt 0) -or ($hostsAddContent.Length -gt 0) -or ($firewallBlockContent.Length -gt 0) -or ($firewallRemoveBlockContent.Length -gt 0) -or ($registryModifyContent.Length -gt 0)) -and (-not (DoWeHaveAdministratorPrivileges))) {
+        $argumentsBound = ($PSBoundParameters.GetEnumerator() | ForEach-Object {
+            $valuePath = $_.Value
+            if ($valuePath.StartsWith('.')) {
+                $valuePath = $valuePath | Resolve-Path
+            }
+            "-$($_.Key) `"$($valuePath)`""
+        }) -join " "
+
+        Start-Process -Verb RunAs $PSHost ("-noexit -ExecutionPolicy Bypass -File `"$PSCommandPath`" $argumentsBound")
+        break
+    }
+
     
 
     # Delete patcher or template files if it downloaded to temp file
