@@ -309,7 +309,7 @@ function RunPSFile {
         [string]$patterns
     )
 
-    $patterns = $patterns -replace ',"$',""
+    [string]$patternsCleaned = $patterns -replace ",`"$",""
 
     # The only .ps1 file that needs to be run from template is the patcher (main/core file)
     # Previously there was additional code here to run the process as administrator or as usual, depending on different conditions
@@ -322,6 +322,32 @@ function RunPSFile {
     if ($process.ExitCode -gt 0) {
         throw "Something happened wrong when patching file $targetFile"
     }
+}
+
+
+<#
+.DESCRIPTION
+Check if string contain any element from array and return $true if contain
+#>
+function DoesStringContainsOneItemArray {
+    [OutputType([bool])]
+    param (
+        [Parameter(Mandatory)]
+        [string]$text,
+        [Parameter(Mandatory)]
+        [array]$items
+    )
+    
+    $containsElement = $false
+
+    foreach ($element in $items) {
+        if ($text -match [regex]::Escape($element)) {
+            $containsElement = $true
+            break
+        }
+    }
+
+    return $containsElement
 }
 
 
@@ -342,6 +368,7 @@ function DetectFilesAndPatternsAndPatch {
     )
 
     [string]$cleanedContent = $templateContent.Clone()
+    $cleanedContent = $cleanedContent.Trim()
     
     # replace variables with variables values in all current content
     foreach ($key in $variables.Keys) {
@@ -367,7 +394,8 @@ function DetectFilesAndPatternsAndPatch {
         } else {
             # if it ready search+replace pattern - add it to all patterns string
             # and continue lines loop
-            if ($patternSplitters.ForEach($line.Contains($_))) {
+            # if ($patternSplitters.ForEach($line.Contains($_))) {
+            if (DoesStringContainsOneItemArray $line $patternSplitters) {
                 $patternsArg += "$line`",`""
                 continue
             }
