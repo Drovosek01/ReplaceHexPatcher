@@ -24,7 +24,8 @@ set "parser_path= WRITE FULL PATH HERE !!!!!!"
 
 set "template_name=template.txt"
 set "template_url_if_need=https://gist.aga.com/Drovosek01/9d47068365ea0bce26526ee61b23be7c/raw/581aa5312b0f99745ca55c2646d31990a93e2ee3/ReplaceHexBytesAll.ps1"
-set "template_path=WRITE FULL PATH HERE !!!!!!"
+
+set "patcher_path=C:\Users\Egor\ReplaceHexPatcher\core\ReplaceHexBytesAll.ps1"
 
 
 
@@ -128,5 +129,5 @@ rem =====
 
 :parse_template
     rem Apply parser script and transfer template to it
-    powershell -noexit -NoLogo -NoProfile -ExecutionPolicy Bypass -File "%parser_path%" "-templatePath" "!template_path!"
+    if defined patcher_path (
     exit /b
