@@ -152,14 +152,14 @@ function ExtractContent {
     [OutputType([string[]])]
     param (
         [Parameter(Mandatory)]
-        [string]$templateContent,
+        [string]$content,
         [Parameter(Mandatory)]
         [string]$sectionName,
         [switch]$several = $false,
         [switch]$saveEmptyLines = $false
     )
 
-    [string]$cleanedTemplateContent = $templateContent.Clone()
+    [string]$cleanedTemplateContent = $content.Clone()
     [string]$startSectionName = "[start-$sectionName]"
     [string]$endSectionName = "[end-$sectionName]"
 
@@ -362,13 +362,12 @@ function DetectFilesAndPatternsAndPatch {
         [Parameter(Mandatory)]
         [string]$patcherFile,
         [Parameter(Mandatory)]
-        [string]$templateContent,
+        [string]$content,
         [Parameter(Mandatory)]
         [System.Collections.Hashtable]$variables
     )
 
-    [string]$cleanedContent = $templateContent.Clone()
-    $cleanedContent = $cleanedContent.Trim()
+    [string]$cleanedContent = $content.Clone().Trim()
     
     # replace variables with variables values in all current content
     foreach ($key in $variables.Keys) {
@@ -469,11 +468,10 @@ function GetPathsForExe {
         [string]$content
     )
 
-    [string]$cleanedContent = $content.Clone()
+    [string]$cleanedContent = $content.Clone().Trim()
+
     [System.Collections.ArrayList]$resultLines = New-Object System.Collections.ArrayList
     [string]$exeFilesPattern = '*.exe'
-
-    $cleanedContent = $content.Trim()
 
     foreach ($line in $cleanedContent -split "\n") {
         # Trim line is important because end line include \n
@@ -524,12 +522,11 @@ function RemoveBlockFilesFromFirewall {
         return
     }
 
-    [string]$cleanedContent = $content.Clone()
+    [string]$cleanedContent = $content.Clone().Trim()
     # replace variables with variables values in all current content
     foreach ($key in $variables.Keys) {
         $cleanedContent = $cleanedContent.Replace($key, $variables[$key])
     }
-    $cleanedContent = $cleanedContent.Trim()
 
     $temp = GetPathsForExe $cleanedContent
     if ($temp -eq -1) {
@@ -665,6 +662,7 @@ function CreateFilesFromData {
         [switch]$isBase64Content = $false
     )
 
+    # Trim only start because end file can have empty lines if new file need empty lines
     [string]$cleanedContent = $sectionContent.Clone().TrimStart()
     [string]$targetPath = ''
     [string]$endLinesNeed = ''
@@ -951,12 +949,12 @@ function CombineLinesForHosts {
     [OutputType([string])]
     param (
         [Parameter(Mandatory)]
-        [string]$templateContent
+        [string]$content
     )
     
     [string]$contentForAddToHosts = ''
 
-    [string[]]$templateContentLines = $templateContent -split "\n"
+    [string[]]$templateContentLines = $content -split "\n"
 
     if ($templateContentLines[0].Trim().ToUpper() -eq $notModifyFlag) {
         foreach ($line in $templateContentLines) {
@@ -969,7 +967,7 @@ function CombineLinesForHosts {
             $contentForAddToHosts += $line + "`r`n"
         }
     } else {
-        foreach ($line in $templateContent -split "\n") {
+        foreach ($line in $content -split "\n") {
             # Trim line is important because end line include \n
             $line = $line.Trim()
             if ($line.StartsWith('#') -OR $line.StartsWith($localhostIP)) {
@@ -992,10 +990,10 @@ Handle content from template section and add it to hosts file
 function AddToHosts {
     param (
         [Parameter(Mandatory)]
-        [string]$templateContent
+        [string]$content
     )
 
-    [string]$cleanedContent = $templateContent.Clone().Trim()
+    [string]$cleanedContent = $content.Clone().Trim()
     
     # replace variables with variables values in all current content
     foreach ($key in $variables.Keys) {
@@ -1084,7 +1082,7 @@ Handle content from template section and remove it from hosts file
 function RemoveFromHosts {
     param (
         [Parameter(Mandatory)]
-        [string]$templateContent
+        [string]$content
     )
 
     [string]$hostsFilePath = [System.Environment]::SystemDirectory + "\drivers\etc\hosts"
@@ -1094,7 +1092,7 @@ function RemoveFromHosts {
         return
     }
 
-    [string]$cleanedContent = $templateContent.Clone().Trim()
+    [string]$cleanedContent = $content.Clone().Trim()
     
     # replace variables with variables values in all current content
     foreach ($key in $variables.Keys) {
@@ -1370,12 +1368,12 @@ function GetVariables {
     [OutputType([System.Collections.Hashtable])]
     param (
         [Parameter(Mandatory)]
-        [string]$templateContent
+        [string]$content
     )
 
     $variables = @{}
 
-    foreach ($line in $templateContent -split "\n") {
+    foreach ($line in $content -split "\n") {
         # Trim line is important because end line include \n
         $line = $line.Trim()
         if (-not ($line.Contains('='))) {
@@ -1401,10 +1399,10 @@ function GetPatcherFile {
     [OutputType([string[]])]
     param (
         [Parameter(Mandatory)]
-        [string]$templateContent
+        [string]$content
     )
 
-    [string]$cleanedContent = $templateContent.Clone().Trim()
+    [string]$cleanedContent = $content.Clone().Trim()
     
     # replace variables with variables values in all current content
     foreach ($key in $variables.Keys) {
