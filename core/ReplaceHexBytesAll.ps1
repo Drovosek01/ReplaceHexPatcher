@@ -27,6 +27,7 @@ if ($patternsArg.Count -eq 0) {
 # GLOBAL VARIABLES
 # =====
 
+$PSHost = If ($PSVersionTable.PSVersion.Major -le 5) {'PowerShell'} Else {'PwSh'}
 [string]$PSBoundParametersStringGlobal = ($PSBoundParameters.GetEnumerator() | ForEach-Object { "-$($_.Key) `"$($_.Value)`"" }) -join " "
 [string]$fileNameOfTarget = [System.IO.Path]::GetFileName("$filePathArg")
 [string]$tempFolderBaseName = "ReplaceHexBytesAllTmp"
@@ -276,7 +277,6 @@ function SearchAndReplace-HexPatternInBinaryFile {
             $foundPatternsIndexes = ($foundPatternsIndexes | Select-Object -Unique)
 
             # relaunch current script in separate process with Admins privileges
-            $PSHost = If ($PSVersionTable.PSVersion.Major -le 5) {'PowerShell'} Else {'PwSh'}
             [string]$lastArgsForProcess = "$varNameTempFolder=`"$tempFolderForPatchedFilePath`",$varNameFoundIndexes=`"$($foundPatternsIndexes -join ' ')`""
             Start-Process -Verb RunAs $PSHost ("-ExecutionPolicy Bypass -File `"$PSCommandPath`" $PSBoundParametersStringGlobal -lastArgs $lastArgsForProcess")
             break
@@ -410,7 +410,6 @@ function KillExeTasks {
         }
         catch {
             if (-not (DoWeHaveAdministratorPrivileges)) {
-                $PSHost = If ($PSVersionTable.PSVersion.Major -le 5) {'PowerShell'} Else {'PwSh'}
                 $processId = Start-Process $PSHost -Verb RunAs -PassThru -Wait -ArgumentList "-ExecutionPolicy Bypass -NoProfile -WindowStyle Hidden -Command `"Stop-Process -Name '$targetName' -Force`""
 
                 if ($processId.ExitCode -gt 0) {

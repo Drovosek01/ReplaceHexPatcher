@@ -14,6 +14,8 @@ $patternSplitters = @('/','\','|')
 
 $comments = @(';;')
 
+$PSHost = If ($PSVersionTable.PSVersion.Major -le 5) {'PowerShell'} Else {'PwSh'}
+
 # Text - flags in parse sections
 [string]$notModifyFlag = 'NOT MODIFY IT'
 [string]$moveToBinFlag = 'MOVE TO BIN'
@@ -315,8 +317,7 @@ function RunPSFile {
     # It looks like it makes no sense to repeat the logic of checking startup as an administrator (but this is not accurate),
     #   but if necessary, run others.ps1 files, then you will need to return the logic of the conditions to run as administrator
 
-    $PSHost = If ($PSVersionTable.PSVersion.Major -le 5) {'PowerShell'} Else {'PwSh'}
-    $process = Start-Process $PSHost -ArgumentList "-ExecutionPolicy Bypass -File `"$psFile`" -filePath `"$targetFile`" -patterns", "$patterns" -PassThru -Wait
+    $process = Start-Process $PSHost -PassThru -Wait -NoNewWindow -ArgumentList "-ExecutionPolicy Bypass -File `"$psFile`" -filePath `"$targetFile`" -patterns", "$patternsCleaned"
 
     if ($process.ExitCode -gt 0) {
         throw "Something happened wrong when patching file $targetFile"
@@ -850,7 +851,6 @@ Remove-Item -Path '$item' -Recurse -Force
     }
 
     if ($deleteCommand.Length -gt 0) {
-        $PSHost = If ($PSVersionTable.PSVersion.Major -le 5) {'PowerShell'} Else {'PwSh'}
         $processId = Start-Process $PSHost -Verb RunAs -ArgumentList "-ExecutionPolicy Bypass -NoProfile -WindowStyle Hidden -Command `"$deleteCommand`"" -PassThru -Wait
         
         if ($processId.ExitCode -gt 0) {
@@ -1185,7 +1185,6 @@ function PowershellCodeExecute {
         
         # write code from template to temp .ps1 file
         $cleanedContent | Out-File -FilePath $tempFile -Encoding utf8 -Force
-        $PSHost = If ($PSVersionTable.PSVersion.Major -le 5) {'PowerShell'} Else {'PwSh'}
     
         # execute file .ps1 with admin rights if exist else request admins rights
         if ((DoWeHaveAdministratorPrivileges) -or (-not $needRunAS)) {
