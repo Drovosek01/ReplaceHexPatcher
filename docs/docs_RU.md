@@ -118,8 +118,13 @@ Hex-шаблоны можно передавать как массив стро�
        - `file_create_from_text`
        - `file_create_from_base64`
        - `hosts_add`
+       - `hosts_remove`
        - `files_or_folders_delete`
        - `firewall_block`
+       - `firewall_remove_block`
+       - `registry_file`
+       - `powershell_code`
+       - `cmd_code`
 
 ## Небольшие личные выводы
 
