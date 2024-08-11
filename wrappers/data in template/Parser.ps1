@@ -1,6 +1,7 @@
-﻿param (
+param (
     [Parameter(Mandatory)]
-    [string]$templatePath
+    [string]$templatePath,
+    [string]$patcherPath
 )
 
 
@@ -1404,18 +1405,13 @@ try {
     [string]$fullTemplatePath, [string]$templateFileTempFlag = GetTemplateFile $templatePath
     [string]$cleanedTemplate = CleanTemplate $fullTemplatePath
 
-    # [string]$patcherPathOrUrlContent = ExtractContent $cleanedTemplate "patcher_path_or_url"
-    # [string]$variablesContent = ExtractContent $cleanedTemplate "variables"
-    # [string]$targetsAndPatternsContent = ExtractContent $cleanedTemplate "targets_and_patterns"
-    # [string]$hostsAddContent = ExtractContent $cleanedTemplate "hosts_add"
-    # [string]$hostsRemoveContent = ExtractContent $cleanedTemplate "hosts_remove"
-    # [string[]]$deleteNeedContent = (ExtractContent $cleanedTemplate "files_or_folders_delete")
-    # [string[]]$createFilesFromTextContent = ExtractContent $cleanedTemplate "file_create_from_text" -saveEmptyLines -several
-    # [string[]]$createFilesFromBase64Content = ExtractContent $cleanedTemplate "file_create_from_base64" -saveEmptyLines -several
-    # [string]$firewallBlockContent = ExtractContent $cleanedTemplate "firewall_block"
-    # [string]$firewallRemoveBlockContent = ExtractContent $cleanedTemplate "firewall_remove_block"
-    # [string]$registryModifyContent = ExtractContent $cleanedTemplate "registry_file"
-    # [string]$powershellCodeContent = ExtractContent $cleanedTemplate "powershell_code"
+    [string]$patcherPathOrUrlContent = ExtractContent $cleanedTemplate "patcher_path_or_url"
+    # If path or URL for patcher will passed like script argument
+    # need check this argument first before check patchers lines from template  
+    if ((Test-Path variable:patcherPath) -and ($patcherPath.Length -gt 1)) {
+        $patcherPathOrUrlContent = $patcherPath + "`n" + $patcherPathOrUrlContent
+    }
+
     [string]$cmdCodeContent = ExtractContent $cleanedTemplate "cmd_code"
 
     # [string]$patcherFile, [string]$patcherFileTempFlag = GetPatcherFile $patcherPathOrUrlContent
