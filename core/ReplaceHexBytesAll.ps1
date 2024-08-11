@@ -1,4 +1,4 @@
-# Example usage in Windows Powershell:
+﻿# Example usage in Windows Powershell:
 # .\ReplaceHexBytesAll.ps1 -filePath "D:\TEMP\file.exe" -patterns "4883EC28BA2F000000488D0DB0B7380A/11111111111111111111111111111111","C4252A0A48894518488D5518488D4D68/11111111111111111111111111111111","45A8488D55A8488D4D68E8618C1E05BA/1111111111111111111111111111111"
 
 # Main script
@@ -270,11 +270,6 @@ function SearchAndReplace-HexPatternInBinaryFile {
             }
 
             [System.IO.File]::WriteAllBytes("${tempFolderForPatchedFilePath}\${fileNameOfTarget}", $fileBytes)
-    
-            # Each pattern can be found many times
-            # in this case pattern index will be added in array indexes many times
-            # but we need only unique indexes
-            $foundPatternsIndexes = ($foundPatternsIndexes | Select-Object -Unique)
 
             # relaunch current script in separate process with Admins privileges
             [string]$lastArgsForProcess = "$varNameTempFolder=`"$tempFolderForPatchedFilePath`",$varNameFoundIndexes=`"$($foundPatternsIndexes -join ' ')`""
@@ -437,20 +432,27 @@ function HandleReplacedPatternsIndexes {
         [int[]]$replacedPatternsIndexes
     )
     
+    # Each pattern can be found many times
+    # in this case pattern index will be added in array indexes many times
+    # but we need only unique indexes
+    [int[]]$replacedPatternsIndexesCleaned = ($replacedPatternsIndexes | Select-Object -Unique)
+
     [string]$notFoundPatterns = ''
 
-    if ($replacedPatternsIndexes.Count -eq 0 -OR ($replacedPatternsIndexes.Count -eq 1 -AND $replacedPatternsIndexes[0] -eq -1)) {
+    if ($replacedPatternsIndexesCleaned.Count -eq 0 -OR ($replacedPatternsIndexesCleaned.Count -eq 1 -AND $replacedPatternsIndexesCleaned[0] -eq -1)) {
         Write-Host "No patterns was found in $filePathArg"
     }
-    elseif ($replacedPatternsIndexes.Count -eq $patterns.Count) {
+    elseif ($replacedPatternsIndexesCleaned.Count -eq $patterns.Count) {
         Write-Host "All hex patterns found and replaced successfully in $filePathArg"
     }
     else {
-        [int[]]$notReplacedPatternsIndexes = (0..$patterns.Count).Where({$_ -notin $replacedPatternsIndexes})
-        for ($i = 0; $i -lt $notReplacedPatternsIndexes.Count; $i++) {
-            $notFoundPatterns += ' ' + $patterns[$notReplacedPatternsIndexes[$i]]
+        [int[]]$notReplacedPatternsIndexes = (0..($patterns.Count-1)).Where({$_ -notin $replacedPatternsIndexesCleaned})
+        if ($notReplacedPatternsIndexes.Count -gt 0) {
+            for ($i = 0; $i -lt $notReplacedPatternsIndexes.Count; $i++) {
+                $notFoundPatterns += ' ' + $patterns[$notReplacedPatternsIndexes[$i]]
+            }
+            Write-Host "Hex patterns" $notFoundPatterns.Trim() "- not found, but other given patterns found and replaced successfully in $filePathArg" 
         }
-        Write-Host "Hex patterns" $notFoundPatterns.Trim() "- not found, but other given patterns found and replaced successfully in $filePathArg" 
     }
 }
 
@@ -516,5 +518,5 @@ $watch.Stop()
 Write-Host "Script execution time is" $watch.Elapsed # time of execution code
 
 # Pause before exit like in CMD
-Write-Host -NoNewLine 'Press any key to continue...';
+Write-Host -NoNewLine "Press any key to continue...`r`n";
 $null = $Host.UI.RawUI.ReadKey('NoEcho,IncludeKeyDown');
