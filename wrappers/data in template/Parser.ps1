@@ -1,4 +1,4 @@
-﻿param (
+param (
     [Parameter(Mandatory)]
     [string]$templatePath,
     [string]$patcherPath
@@ -1517,55 +1517,96 @@ try {
     # Start use parsed data from template file
 
     if ($variablesContent.Length -gt 0) {
+        Write-Host
+        Write-Host "Start parsing template variables..."
         [System.Collections.Hashtable]$variables = GetVariables $variablesContent
+        Write-Host "Parsing template variables complete"
     }
 
     if ($patcherPathOrUrlContent.Length -gt 0) {
+        Write-Host
+        Write-Host "Start patcher path..."
         [string]$patcherFile, [string]$patcherFileTempFlag = GetPatcherFile $patcherPathOrUrlContent
+        Write-Host "Patcher received"
     }
 
     if ($targetsAndPatternsContent.Length -gt 0) {
+        Write-Host
+        Write-Host "Start parsing patch targets and apply patches..."
         DetectFilesAndPatternsAndPatch $patcherFile $targetsAndPatternsContent $variables
+        Write-Host "Parsing patch targets and apply patches complete"    
     }
 
     if ($hostsRemoveContent.Length -gt 0) {
+        Write-Host
+        Write-Host "Start parsing lines for remove from hosts..."
         RemoveFromHosts $hostsRemoveContent
+        Write-Host "Removing lines from hosts complete"
     }
 
     if ($hostsAddContent.Length -gt 0) {
+        Write-Host
+        Write-Host "Start parsing lines for add to hosts..."
         AddToHosts $hostsAddContent
+        Write-Host "Adding lines to hosts complete"
     }
 
     if ($deleteNeedContent.Length -gt 0) {
+        Write-Host
+        Write-Host "Start parsing lines with paths for files and folders delete..."
         DeleteFilesOrFolders $deleteNeedContent
+        Write-Host "Deleting files and folders complete"
     }
 
     if (($createFilesFromTextContent.Count -gt 0) -and ($createFilesFromTextContent[0].Length -gt 0)) {
+        Write-Host
+        Write-Host "Start parsing lines for create files..."
         CreateAllFilesFromText $createFilesFromTextContent
+        Write-Host "Creating text files complete"
     }
 
     if (($createFilesFromBase64Content.Count -gt 0) -and ($createFilesFromBase64Content[0].Length -gt 0)) {
+        Write-Host
+        Write-Host "Start parsing data for create files from base64..."
         CreateAllFilesFromBase64 $createFilesFromBase64Content
+        Write-Host "Creating files from base64 complete"
     }
 
     if ($firewallBlockContent.Length -gt 0) {
+        Write-Host
+        Write-Host "Start parsing lines paths for block in firewall..."
         BlockFilesWithFirewall $firewallBlockContent
+        Write-Host "Adding rules in firewall complete"
     }
 
     if ($firewallRemoveBlockContent.Length -gt 0) {
+        Write-Host
+        Write-Host "Start parsing lines paths for remove from firewall..."
         RemoveBlockFilesFromFirewall $firewallRemoveBlockContent
+        Write-Host "Remove rules from firewall complete"
     }
 
     if ($registryModifyContent.Length -gt 0) {
+        Write-Host
+        Write-Host "Start parsing lines for modify registry..."
         RegistryFileApply $registryModifyContent
+        Write-Host "Modifying registry complete"
     }
 
     if ($powershellCodeContent.Length -gt 0) {
+        Write-Host
+        Write-Host "Start execute external Powershell code..."
+        Write-Host
         PowershellCodeExecute $powershellCodeContent -hideExternalOutput
+        Write-Host "Executing external Powershell code complete"
     }
 
     if ($cmdCodeContent.Length -gt 0) {
+        Write-Host
+        Write-Host "Start execute external CMD code..."
+        Write-Host
         CmdCodeExecute $cmdCodeContent -needRunAS
+        Write-Host "Executing external CMD code complete"
     }
 
     
