@@ -1,4 +1,4 @@
-﻿# Example usage in Windows Powershell:
+# Example usage in Windows Powershell:
 # .\ReplaceHexBytesAll.ps1 -filePath "D:\TEMP\file.exe" -patterns "4883EC28BA2F000000488D0DB0B7380A/11111111111111111111111111111111","C4252A0A48894518488D5518488D4D68/11111111111111111111111111111111","45A8488D55A8488D4D68E8618C1E05BA/1111111111111111111111111111111"
 
 # Main script
@@ -402,7 +402,11 @@ function KillExeTasks {
     
     $targetName = [System.IO.Path]::GetFileNameWithoutExtension($targetPath)
 
-    $process = Get-Process -Name $targetName -ErrorAction SilentlyContinue
+    $process = Get-Process | ForEach-Object {
+        if ($_.Path -eq $targetPath) {
+            return $_.Path -eq $targetPath
+        }
+    }
 
     if ($process) {
         try {
