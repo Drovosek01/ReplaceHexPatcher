@@ -472,15 +472,15 @@ function GetPathsForExe {
     [System.Collections.ArrayList]$resultLines = New-Object System.Collections.ArrayList
     [string]$exeFilesPattern = '*.exe'
     
-    # replace variables with variables values in all current content
-    foreach ($key in $variables.Keys) {
-        $cleanedContent = $cleanedContent.Replace($key, $variables[$key])
-    }
     $cleanedContent = $content.Trim()
 
     foreach ($line in $cleanedContent -split "\n") {
         # Trim line is important because end line include \n
         $line = $line.Trim()
+
+        if (-not (Test-Path $line)) {
+            continue
+        }
 
         if ($line.EndsWith("\$exeFilesPattern")) {
             [string]$folderPath = $line.Replace("\$exeFilesPattern", '')
@@ -495,7 +495,11 @@ function GetPathsForExe {
         }
     }
 
-    return $resultLines.ToArray()
+    # if no paths we return -1 because Powershell cannot return empty array.
+    # Then need handle -1 where we execute this function
+    $result = if ($resultLines.Count -eq 0) { -1 } else { $resultLines.ToArray() }
+
+    return $result
 }
 
 
@@ -519,7 +523,20 @@ function RemoveBlockFilesFromFirewall {
         return
     }
 
-    [string[]]$exePaths = GetPathsForExe -content $content
+    [string]$cleanedContent = $content.Clone()
+    # replace variables with variables values in all current content
+    foreach ($key in $variables.Keys) {
+        $cleanedContent = $cleanedContent.Replace($key, $variables[$key])
+    }
+    $cleanedContent = $cleanedContent.Trim()
+
+    $temp = GetPathsForExe $cleanedContent
+    if ($temp -eq -1) {
+        # no paths for files - no targets for remove in firewall
+        return
+    } else {
+        [string[]]$exePaths = $temp
+    }
 
     # Perhaps it is better to delete only the blocking rules, and the rules allowing access should not be touched (left)
     # But I have never had such a task.
@@ -578,7 +595,20 @@ function BlockFilesWithFirewall {
         return
     }
 
-    [string[]]$exePaths = GetPathsForExe -content $content
+    [string]$cleanedContent = $content.Clone()
+    # replace variables with variables values in all current content
+    foreach ($key in $variables.Keys) {
+        $cleanedContent = $cleanedContent.Replace($key, $variables[$key])
+    }
+    $cleanedContent = $cleanedContent.Trim()
+
+    $temp = GetPathsForExe $cleanedContent
+    if ($temp -eq -1) {
+        # no paths for files - no targets for block in firewall
+        return
+    } else {
+        [string[]]$exePaths = $temp
+    }
 
     # deduplication rules - remove existing rules for same exes before block exe
     RemoveFilesFromFirewall -exePaths $exePaths
