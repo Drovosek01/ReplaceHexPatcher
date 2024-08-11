@@ -1403,11 +1403,28 @@ function GetPatcherFile {
         [string]$templateContent
     )
 
-    foreach ($line in $templateContent -split "\n") {
+    [string]$cleanedContent = $templateContent.Clone().Trim()
+    
+    # replace variables with variables values in all current content
+    foreach ($key in $variables.Keys) {
+        $cleanedContent = $cleanedContent.Replace($key, $variables[$key])
+    }
+
+    foreach ($line in $cleanedContent -split "\n") {
         # Trim line is important because end line include \n
         $line = $line.Trim()
+
         if ($line -like "http*") {
-            if ((Invoke-WebRequest -UseBasicParsing -Uri $line).StatusCode -eq 200) {
+            $tempStatusCode = ''
+            try {
+                $tempStatusCode = (Invoke-WebRequest -UseBasicParsing -Uri $line -ErrorAction Stop).StatusCode
+            }
+            catch {
+                continue
+            }
+
+            if ($tempStatusCode -eq 200) {
+                # If file on URL exist - download it to temp file
                 [string]$tempFile = [System.IO.Path]::GetTempFileName()
                 Get-Process | Where-Object {$_.CPU -ge 1} | Out-File $tempFile
                 (New-Object System.Net.WebClient).DownloadFile($line,$tempFile)
