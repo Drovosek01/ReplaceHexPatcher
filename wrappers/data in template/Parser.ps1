@@ -1010,6 +1010,8 @@ function AddToHosts {
                 Set-ItemProperty -Path $hostsFilePath -Name Attributes -Value ($fileAttributes -bor [System.IO.FileAttributes]::ReadOnly)
                 $needRemoveReadOnlyAttr = $false
             }
+
+            Clear-DnsClientCache
         } else {
             # IMPORTANT !!!
             # Do not formate this command and not re-write it
@@ -1026,7 +1028,8 @@ $contentForAddToHosts
                 + "`n" `
                 + $command `
                 + "`n" `
-                + "Set-ItemProperty -Path '$hostsFilePath' -Name Attributes -Value ('$fileAttributes' -bor [System.IO.FileAttributes]::ReadOnly)"
+                + "Set-ItemProperty -Path '$hostsFilePath' -Name Attributes -Value ('$fileAttributes' -bor [System.IO.FileAttributes]::ReadOnly)" `
+                + "Clear-DnsClientCache"
             }
             Start-Process powershell -Verb RunAs -ArgumentList "-ExecutionPolicy Bypass -NoProfile -WindowStyle Hidden -Command `"$command`""
         }
@@ -1036,6 +1039,7 @@ $contentForAddToHosts
 $contentForAddToHosts 
 '@
 | Out-File -FilePath $hostsFilePath -Encoding utf8 -Force
+Clear-DnsClientCache
 "@
         Start-Process powershell -Verb RunAs -ArgumentList "-ExecutionPolicy Bypass -NoProfile -WindowStyle Hidden -Command `"$command`""
     }
@@ -1105,7 +1109,7 @@ function RemoveFromHosts {
         }
     }
 
-    $resultContent = ($resultLines -join "`r`n")
+    $resultContent = ($resultLines -join "`r`n").Trim()
 
     if (DoWeHaveAdministratorPrivileges) {
         if ($needRemoveReadOnlyAttr) {
@@ -1118,6 +1122,8 @@ function RemoveFromHosts {
             Set-ItemProperty -Path $hostsFilePath -Name Attributes -Value ($fileAttributes -bor [System.IO.FileAttributes]::ReadOnly)
             $needRemoveReadOnlyAttr = $false
         }
+
+        Clear-DnsClientCache
     } else {
         # IMPORTANT !!!
         # Do not formate this command and not re-write it
@@ -1135,7 +1141,8 @@ $resultContent
             + "`n" `
             + $command `
             + "`n" `
-            + "Set-ItemProperty -Path '$hostsFilePath' -Name Attributes -Value ('$fileAttributes' -bor [System.IO.FileAttributes]::ReadOnly)"
+            + "Set-ItemProperty -Path '$hostsFilePath' -Name Attributes -Value ('$fileAttributes' -bor [System.IO.FileAttributes]::ReadOnly)" `
+            + "Clear-DnsClientCache"
         }
         Start-Process powershell -Verb RunAs -ArgumentList "-ExecutionPolicy Bypass -NoProfile -WindowStyle Hidden -Command `"$command`""
     }
