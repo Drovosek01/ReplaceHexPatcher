@@ -518,14 +518,14 @@ function RemoveBlockFilesFromFirewall {
         [Parameter(Mandatory)]
         [string]$content
     )
+
+    if (($content.Trim()).Count -eq 0) {
+        return
+    }
     
     if (-Not (DoWeHaveAdministratorPrivileges)) {
         throw "For modify Firewall rules need Administrator privileges, but this script not have it.`nRelaunch script with admins privileges"
         exit 1
-    }
-
-    if ($content.Count -eq 0) {
-        return
     }
 
     [string]$cleanedContent = $content.Clone().Trim()
@@ -589,14 +589,14 @@ function BlockFilesWithFirewall {
         [Parameter(Mandatory)]
         [string]$content
     )
+
+    if (($content.Trim()).Count -eq 0) {
+        return
+    }
     
     if (-Not (DoWeHaveAdministratorPrivileges)) {
         throw "For modify Firewall rules need Administrator privileges, but this script not have it.`nRelaunch script with admins privileges"
         exit 1
-    }
-
-    if ($content.Count -eq 0) {
-        return
     }
 
     [string]$cleanedContent = $content.Clone()
@@ -1111,8 +1111,7 @@ function RemoveFromHosts {
 
     [string[]]$linesForRemoveFromHosts = $cleanedContent -split "`n"
     [string]$hostsFileContent = [System.IO.File]::ReadAllText($hostsFilePath)
-    [string[]]$hostsLines = [System.IO.File]::ReadAllLines($hostsFilePath)
-
+    
     if ($hostsFileContent.Trim().Length -eq 0) {
         # if hosts file empty - we no have target for remove lines
         return
@@ -1120,9 +1119,10 @@ function RemoveFromHosts {
     
     if (-not ($hostsFileContent.EndsWith("`r`n"))) {
         # add to hosts last empty line if not exist
-        $hostsFileContent = "`r`n$hostsFileContent`r`n"
+        $hostsFileContent = "$hostsFileContent`r`n"
     }
-
+    
+    [string[]]$hostsLines = [System.IO.File]::ReadAllLines($hostsFilePath)
     [string]$resultContent = ''
     [string[]]$resultLines = $hostsLines.Clone()
 
@@ -1627,7 +1627,7 @@ try {
         Write-Host
         Write-Host "Start execute external CMD code..."
         Write-Host
-        CmdCodeExecute $cmdCodeContent -needRunAS
+        CmdCodeExecute $cmdCodeContent
         Write-Host "Executing external CMD code complete"
     }
 
