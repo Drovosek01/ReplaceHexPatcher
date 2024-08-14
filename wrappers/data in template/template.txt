@@ -1,10 +1,14 @@
 Info about template:
 
+Template for Parser - https://github.com/Drovosek01/ReplaceHexPatcher/blob/main/wrappers/data%20in%20template/Parser.ps1
+
 1. Lines containts 2 simbols semicolon (;;) - these lines is comment
     and these lines will be delete from full template before parse sections
 2. All lines outisde sections [start-*]/[end-*] - will not extract from template
     and will not affect the sections in any way.
     In fact, the text outside the sections can be considered comments
+3. File has global variable `$USER` and all these words will be replaced with current Windows username
+
 
 
 
@@ -135,22 +139,6 @@ TIwMjMgX2NrPWM1MWU5NDc1MDcgc2lnPSI2MFAwNDUxSlNIWDROODVEODlNQThSMEQ4VUZUTkUNCiAgT
 
 
 
-Write lines for add to hosts-file.
-If line start with comment symbol # or start with 127.0.0.1 or start with 0.0.0.0
-Line will add to hosts without modifications
-Otherwise it mean line contain URL for block and before URL-address
-will be added `0.0.0.0 `
-
-[start-hosts_add]
-# Just some title
-anysute.com
-sdjfhksdf.com
-ij.sddddwr.ru
-bdj.sdfsdf.ss
-[end-hosts_add]
-
-
-
 Write lines for search for delete from hosts-file
 If line start with comment symbol # or start with 127.0.0.1 or start with 0.0.0.0
 Line will search without modifications (but spaces will be adaptive for search)
@@ -166,6 +154,22 @@ ij.sddddwr.ru
 bdj.sdfsdf.ss
 *adobe.io*
 [end-hosts_remove]
+
+
+
+Write lines for add to hosts-file.
+If line start with comment symbol # or start with 127.0.0.1 or start with 0.0.0.0
+Line will add to hosts without modifications
+Otherwise it mean line contain URL for block and before URL-address
+will be added `0.0.0.0 `
+
+[start-hosts_add]
+# Just some title
+anysute.com
+sdjfhksdf.com
+ij.sddddwr.ru
+bdj.sdfsdf.ss
+[end-hosts_add]
 
 
 
