@@ -174,6 +174,10 @@ function ExtractContent {
     if ($cleanedTemplateContent[$startContentIndex] -eq "`n") {
         $startContentIndex +=1
     }
+    if (($cleanedTemplateContent[$startContentIndex] -eq "`r") -and ($cleanedTemplateContent[$startContentIndex + 1] -eq "`n")) {
+        $startContentIndex +=2
+    }
+
     # end position content between content tags
     [int]$endContentIndex = $cleanedTemplateContent.IndexOf($endSectionName)
 
@@ -209,6 +213,8 @@ function ExtractContent {
         [void]$contentSection.Add($cleanedTemplateContent.Substring($startContentIndex, $endContentIndex-$startContentIndex))
     }
 
+    # If array will contain 1 element and it will returned to variable with type [string]
+    # this variable will contain this 1 element, not all array
     return $contentSection.ToArray()
 }
 
@@ -1588,18 +1594,18 @@ try {
         Write-Host "Creating files from base64 complete"
     }
 
-    if ($firewallBlockContent.Length -gt 0) {
-        Write-Host
-        Write-Host "Start parsing lines paths for block in firewall..."
-        BlockFilesWithFirewall $firewallBlockContent
-        Write-Host "Adding rules in firewall complete"
-    }
-
     if ($firewallRemoveBlockContent.Length -gt 0) {
         Write-Host
         Write-Host "Start parsing lines paths for remove from firewall..."
         RemoveBlockFilesFromFirewall $firewallRemoveBlockContent
         Write-Host "Remove rules from firewall complete"
+    }
+
+    if ($firewallBlockContent.Length -gt 0) {
+        Write-Host
+        Write-Host "Start parsing lines paths for block in firewall..."
+        BlockFilesWithFirewall $firewallBlockContent
+        Write-Host "Adding rules in firewall complete"
     }
 
     if ($registryModifyContent.Length -gt 0) {
