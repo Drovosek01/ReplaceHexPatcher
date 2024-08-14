@@ -17,6 +17,7 @@ $comments = @(';;')
 $PSHost = If ($PSVersionTable.PSVersion.Major -le 5) {'PowerShell'} Else {'PwSh'}
 
 # Text - flags in parse sections
+[string]$makeBackupFlag = 'MAKE BACKUP'
 [string]$notModifyFlag = 'NOT MODIFY IT'
 [string]$moveToBinFlag = 'MOVE TO BIN'
 [string]$binaryDataFlag = 'BINARY DATA'
@@ -312,7 +313,9 @@ function RunPSFile {
         [Parameter(Mandatory)]
         [string]$targetFile,
         [Parameter(Mandatory)]
-        [string]$patterns
+        [string]$patterns,
+        [Parameter(Mandatory)]
+        [bool]$makeBackup
     )
 
     [string]$patternsCleaned = $patterns -replace ",`"$",""
@@ -323,7 +326,11 @@ function RunPSFile {
     # It looks like it makes no sense to repeat the logic of checking startup as an administrator (but this is not accurate),
     #   but if necessary, run others.ps1 files, then you will need to return the logic of the conditions to run as administrator
 
-    $process = Start-Process $PSHost -PassThru -Wait -NoNewWindow -ArgumentList "-ExecutionPolicy Bypass -File `"$psFile`" -filePath `"$targetFile`" -patterns", "$patternsCleaned"
+    if ($makeBackup) {
+        $process = Start-Process $PSHost -PassThru -Wait -NoNewWindow -ArgumentList "-ExecutionPolicy Bypass -File `"$psFile`" -filePath `"$targetFile`" -patterns", "$patternsCleaned", "-makeBackup"
+    } else {
+        $process = Start-Process $PSHost -PassThru -Wait -NoNewWindow -ArgumentList "-ExecutionPolicy Bypass -File `"$psFile`" -filePath `"$targetFile`" -patterns", "$patternsCleaned"
+    }
 
     if ($process.ExitCode -gt 0) {
         throw "Something happened wrong when patching file $targetFile"
@@ -382,6 +389,7 @@ function DetectFilesAndPatternsAndPatch {
 
     [string]$filePathArg = ''
     [string]$patternsArg = '"'
+    [bool]$makeBackupArg = $false
 
     [bool]$isSearchPattern = $true
 
@@ -391,12 +399,16 @@ function DetectFilesAndPatternsAndPatch {
 
         if (Test-Path $line 2>$null) {
             if ($patternsArg.Length -gt 1) {
-                RunPSFile $patcherFile $filePathArg $patternsArg
+                RunPSFile $patcherFile $filePathArg $patternsArg $makeBackupArg
+                # Reset variables-arguments before run patcher again
                 $filePathArg = $line
                 $patternsArg = '"'
+                $makeBackupArg = $false
             } else {
                 $filePathArg = $line
             }
+        } elseif ($line -eq $makeBackupFlag) {
+            $makeBackupArg = $true
         } else {
             # if it ready search+replace pattern - add it to all patterns string
             # and continue lines loop
@@ -420,7 +432,7 @@ function DetectFilesAndPatternsAndPatch {
 
     if ($patternsArg.Length -gt 1) {
         if ($filePathArg) {
-            RunPSFile $patcherFile $filePathArg $patternsArg
+            RunPSFile $patcherFile $filePathArg $patternsArg $makeBackupArg
         } else {
             Write-Error "No valid targets or patterns was found. Or target files not exist"
             exit 1
