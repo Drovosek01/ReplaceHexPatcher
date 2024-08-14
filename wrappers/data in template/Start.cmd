@@ -20,13 +20,16 @@ set "temp_filename_uniq="
 
 set "parser_name=Parser.ps1"
 set "parser_url_if_need=https://github.com/Drovosek01/ReplaceHexPatcher/raw/main/wrappers/data in template/Parser.ps1"
-set "parser_path= WRITE FULL PATH HERE !!!!!!"
+rem WRITE FULL PATH or URL HERE !!!!!! vvv
+set "parser_path="
 
 set "template_name=template.txt"
 set "template_url_if_need=https://github.com/Drovosek01/ReplaceHexPatcher/raw/main/wrappers/data in template/template.txt"
-set "template_path= WRITE FULL PATH HERE !!!!!!"
+rem WRITE FULL PATH or URL HERE !!!!!! vvv
+set "template_path="
 
 set "patcher_path=https://github.com/Drovosek01/ReplaceHexPatcher/raw/main/core/ReplaceHexBytesAll.ps1"
+
 set "current_dir=%~dp0"
 
 
@@ -95,11 +98,6 @@ rem =====
         call :set_filename "%current_dir%%parser_name%"
         set "parser_path=!file!"
         exit /b
-    ) else if exist "..\..\core\%parser_name%" (
-        rem patcher path in repository
-        call :set_filename "..\..\core\%parser_name%"
-        set "parser_path=!file!"
-        exit /b
     ) else (
         call :get_temp_filename_uniq .ps1
         set "parser_path=!temp_filename_uniq!"
@@ -115,11 +113,6 @@ rem =====
         exit /b
     ) else if exist "%current_dir%%template_name%" (
         call :set_filename "%current_dir%%template_name%"
-        set "template_path=!file!"
-        exit /b
-    ) else if exist "..\..\core\%template_name%" (
-        rem patcher path in repository
-        call :set_filename "..\..\core\%template_name%"
         set "template_path=!file!"
         exit /b
     ) else (
