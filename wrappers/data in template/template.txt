@@ -1,11 +1,16 @@
-[start-patcher_path_or_url]
-# any data 123
-more
-C:\Users\$USER\ReplaceHexPatcher\core\ReplaceHexBytesAll.ps1
-again
-https://gist.github.com/Drovosek01/9d47068365ea0bce26526ee61b23be7c/raw/581aa5312b0f99745ca55c2646d31990a93e2ee3/ReplaceHexBytesAll.ps1      
-;; коммент
-[end-patcher_path_or_url]
+Info about template:
+
+1. Lines containts 2 simbols semicolon (;;) - these lines is comment
+    and these lines will be delete from full template before parse sections
+2. All lines outisde sections [start-*]/[end-*] - will not extract from template
+    and will not affect the sections in any way.
+    In fact, the text outside the sections can be considered comments
+
+
+
+Write variables for current template-file
+It will be separated on symbol `=` and firt items before `=`
+will search and replace in all sections in this file
 
 [start-variables]
 ;; copied explorer.exe from C:\Windows
@@ -23,6 +28,28 @@ pattern_3 = 211AFEF2606F7E0D5AB5D2109E0623AA/909090F2606F7E0D5AB5D21090909090
 pattern_4 = 40503C002849503C002F013C00020EC67C1200001918080018\405787802849AABB002F013909090EC1234200001918080018
 [end-variables]
 
+
+
+Write absolute path to patcher-script to ReplaceHexBytesAll.ps1
+or valid http* direct URL for download patcher-script
+First exist file or valid URL will be use
+
+[start-patcher_path_or_url]
+# any data 123
+more
+C:\Users\$USER\ReplaceHexPatcher\core\ReplaceHexBytesAll.ps1
+again
+https://gist.github.com/Drovosek01/9d47068365ea0bce26526ee61b23be7c/raw/581aa5312b0f99745ca55c2646d31990a93e2ee3/ReplaceHexBytesAll.ps1      
+;; коммент
+[end-patcher_path_or_url]
+
+
+
+Write paths to files then hex-patterns for find+replace bytes
+After line with path to file all other lines below will be considered strings with patterns
+String with pattern can contain full pattern search and replace with separator symbol
+or search and replace patterns on different lines
+
 [start-targets_and_patterns]
 path_target_1
 pattern_1
@@ -36,12 +63,26 @@ original_1
 patched_1
 [end-targets_and_patterns]
 
+
+
+Write absolute paths to files and folders for delete it
+If first line contain text `MOVE TO BIN` it mean all files or folders will move to bin
+otherwise it will be deleted from system
+
 [start-files_or_folders_delete]
+MOVE TO BIN
 C:\Users\$USER\AppData\Local\Temp\TestFolder123
 C:\Users\$USER\AppData\Local\Temp\TestFile456
 [end-files_or_folders_delete]
 
 
+
+Write data for create text-file
+First line always is absolute path to file
+Second line can be "flag" with type of end of lines - CRLF or LF
+Other lines - content for created file.
+Empty lines will not deleted.
+There may be several such sections.
 
 [start-file_create_from_text]
 C:\Users\$USER\AppData\Local\Temp\license file.lic
@@ -64,8 +105,15 @@ LICENSE company product3 2099.99 permanent uncounted hostid=ANY
 
 
 
-
-
+Write data for create file with content from decoded base64-code
+First line always is absolute path to file
+Second line can be "flag" with type of content inside base64 - `BINARY DATA`.
+If section have this flag decoded data will be represented as bytes and written to a file. Otherwise decoded data is text.
+Also second line can have flag of type of end of lines - CRLF or LF.
+If decoded data not binary - end of lines these text will be converted to this type of end of lines.
+Other lines - content of big base64-code.
+Empty lines will not deleted.
+There may be several such sections.
 
 [start-file_create_from_base64]
 C:\Users\$USER\AppData\Local\Temp\file created from base64.bin
@@ -87,11 +135,11 @@ TIwMjMgX2NrPWM1MWU5NDc1MDcgc2lnPSI2MFAwNDUxSlNIWDROODVEODlNQThSMEQ4VUZUTkUNCiAgT
 
 
 
-
-
-
-
-
+Write lines for add to hosts-file.
+If line start with comment symbol # or start with 127.0.0.1 or start with 0.0.0.0
+Line will add to hosts without modifications
+Otherwise it mean line contain URL for block and before URL-address
+will be added `0.0.0.0 `
 
 [start-hosts_add]
 # Just some title
@@ -101,6 +149,14 @@ ij.sddddwr.ru
 bdj.sdfsdf.ss
 [end-hosts_add]
 
+
+
+Write lines for search for delete from hosts-file
+If line start with comment symbol # or start with 127.0.0.1 or start with 0.0.0.0
+Line will search without modifications (but spaces will be adaptive for search)
+Otherwise it mean line contain URL-word for search in hosts lines for delete line with this word
+We can use star symbol * and it will be replaced with `.*` and used like regex within the boundaries of the word
+
 [start-hosts_remove]
 # Just some title
 0.0.0.0                  anysute.com
@@ -108,9 +164,13 @@ site.com*
 sdjfhksdf.com
 ij.sddddwr.ru
 bdj.sdfsdf.ss
-*adobe.com*
+*adobe.io*
 [end-hosts_remove]
 
+
+
+Write lines with absolute paths for .exe-files
+and all rules with these exe-files will be deleted from Windows Firewall
 
 [start-firewall_remove_block]
 path_target_1
@@ -120,15 +180,25 @@ C:\Users\$USER\AppData\Local\Temp\Test Folder with subfolders\*
 
 [end-firewall_remove_block]
 
+
+
+Write lines with absolute paths for .exe-files
+and for all these exe-files will be added rules in Windows Firewall for block all connections
+Also we can write path for folder with end path like `\*` it mean block all exe-files in this folder and all subfolders
+but if it ends like `\*.exe` it mean block all exe-files only in this folder
+
 [start-firewall_block]
 path_target_1
 path_target_2
 C:\Users\$USER\AppData\Local\Temp\Test Folder\*.exe
 C:\Users\$USER\AppData\Local\Temp\Test Folder with subfolders\*
-
-
-
 [end-firewall_block]
+
+
+
+Write same lines like in .reg-file and it will be executed/applied to Windows Registry
+First line section can skip text Windows Registry Editor Version 5.00
+and Parser will add it dynamicly
 
 [start-registry_file]
 
@@ -154,6 +224,9 @@ C:\Users\$USER\AppData\Local\Temp\Test Folder with subfolders\*
 [end-registry_file]
 
 
+
+Write Powershell-code and will be created temp .ps1-file with this code and will be executed
+
 [start-powershell_code]
 $tempFile = [System.IO.Path]::GetTempFileName() + '.txt'
 [void](New-Item -Path $tempFile -ItemType File -Force -ErrorAction Stop)
@@ -165,6 +238,7 @@ Remove-Item -Path $tempFile -Force
 
 
 
+Write CMD-code and will be created temp .cmd-file with this code and will be executed
 
 [start-cmd_code]
 @echo off
