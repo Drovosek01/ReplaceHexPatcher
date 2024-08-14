@@ -2,9 +2,9 @@ Info about template:
 
 Template for Parser - https://github.com/Drovosek01/ReplaceHexPatcher/blob/main/wrappers/data%20in%20template/Parser.ps1
 
-1. Lines containts 2 simbols semicolon (;;) - these lines is comment
+1. Lines containts 2 symbols semicolon (;;) - these lines is comment
     and these lines will be delete from full template before parse sections
-2. All lines outisde sections [start-*]/[end-*] - will not extract from template
+2. All lines outside sections [start-*]/[end-*] - will not extract from template
     and will not affect the sections in any way.
     In fact, the text outside the sections can be considered comments
 3. File has global variable `$USER` and all these words will be replaced with current Windows username
@@ -13,7 +13,7 @@ Template for Parser - https://github.com/Drovosek01/ReplaceHexPatcher/blob/main/
 
 
 Write variables for current template-file
-It will be separated on symbol `=` and firt items before `=`
+It will be separated on symbol `=` and first items before `=`
 will search and replace in all sections in this file
 
 [start-variables]
@@ -202,7 +202,7 @@ C:\Users\$USER\AppData\Local\Temp\Test Folder with subfolders\*
 
 Write same lines like in .reg-file and it will be executed/applied to Windows Registry
 First line section can skip text Windows Registry Editor Version 5.00
-and Parser will add it dynamicly
+and Parser will add it dynamically
 
 [start-registry_file]
 
@@ -221,7 +221,7 @@ and Parser will add it dynamicly
 "HideFileExt"=dword:00000000
 
 ;Выключение сохранения списков открывавшихся файлов
-;В проводнике это делается через параметры и снятие 1 галки в разделе Конфеденциальность
+;В проводнике это делается через параметры и снятие 1 галки в разделе Конфиденциальность
 ;Показать недавно использовавшиеся файлы на панели быстрого доступа
 [HKEY_CURRENT_USER\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\Explorer]
 "NoRecentDocsHistory"=dword:00000001
