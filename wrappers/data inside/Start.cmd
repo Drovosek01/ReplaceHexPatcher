@@ -419,7 +419,7 @@ on.more.time
         exit /b 1 
     )
     if not exist %1 (
-        echo Transferred files or folder for block in firewall not exist!
+        echo Transferred files or folder %1% for block in firewall not exist!
         exit /b 1
     )
 
@@ -430,6 +430,7 @@ on.more.time
         call :set_filename %1
         rem remove existing firewall rules for file
         powershell -NoLogo -NoProfile -ExecutionPolicy Bypass -Command "$existRulesForExes = Get-NetFirewallApplicationFilter | Where-Object { $_.Program -in '!file!' } | Get-NetFirewallRule; if ($existRulesForExes.Length -gt 0) { $existRulesForExes | Remove-NetFirewallRule }"
+        echo A blocking rule is being added for !file!
         netsh advfirewall firewall add rule name="Blocked !file!" dir=in action=block program="!file!" enable=yes profile=any >nul 2>&1
         netsh advfirewall firewall add rule name="Blocked !file!" dir=out action=block program="!file!" enable=yes profile=any >nul 2>&1
     ) else (
@@ -440,6 +441,7 @@ on.more.time
             for %%G in (%1) do (
                 rem remove existing firewall rules for file
                 powershell -NoLogo -NoProfile -ExecutionPolicy Bypass -Command "$existRulesForExes = Get-NetFirewallApplicationFilter | Where-Object { $_.Program -in '%%G' } | Get-NetFirewallRule; if ($existRulesForExes.Length -gt 0) { $existRulesForExes | Remove-NetFirewallRule }"
+                echo A blocking rule is being added for %%G
                 netsh advfirewall firewall add rule name="Blocked %%G" dir=in action=block program="%%G" enable=yes profile=any >nul 2>&1
                 netsh advfirewall firewall add rule name="Blocked %%G" dir=out action=block program="%%G" enable=yes profile=any >nul 2>&1
             )
@@ -448,6 +450,7 @@ on.more.time
             for /f "delims=" %%G in ('dir /b /s %1') do (
                 rem remove existing firewall rules for file
                 powershell -NoLogo -NoProfile -ExecutionPolicy Bypass -Command "$existRulesForExes = Get-NetFirewallApplicationFilter | Where-Object { $_.Program -in '%%G' } | Get-NetFirewallRule; if ($existRulesForExes.Length -gt 0) { $existRulesForExes | Remove-NetFirewallRule }"
+                echo A blocking rule is being added for %%G
                 netsh advfirewall firewall add rule name="Blocked %%G" dir=in action=block program="%%G" enable=yes profile=any >nul 2>&1
                 netsh advfirewall firewall add rule name="Blocked %%G" dir=out action=block program="%%G" enable=yes profile=any >nul 2>&1
             )
