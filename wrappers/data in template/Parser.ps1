@@ -760,10 +760,10 @@ function CreateFilesFromData {
             # so WriteAllBytes to temp file then move temp file with admin privileges
             $tempFile = [System.IO.Path]::GetTempFileName()
             [System.IO.File]::WriteAllBytes($tempFile, $targetContent)
-            $processId = Start-Process powershell -Verb RunAs -PassThru -Wait -ArgumentList "-ExecutionPolicy Bypass -NoProfile -WindowStyle Hidden -Command `"Copy-Item -Path '$tempFile' -Destination '$targetPath' -Force;Remove-Item '$tempFile'`""
+            $processId = Start-Process $PSHost -Verb RunAs -PassThru -Wait -ArgumentList "-ExecutionPolicy Bypass -NoProfile -WindowStyle Hidden -Command `"Copy-Item -Path '$tempFile' -Destination '$targetPath' -Force;Remove-Item '$tempFile'`""
         }
         else {
-            $processId = Start-Process powershell -Verb RunAs -PassThru -Wait -ArgumentList "-ExecutionPolicy Bypass -NoProfile -WindowStyle Hidden -Command `"New-Item -Path `"$targetPath`" -ItemType File -Force;Set-Content -Value `"$targetContent`" -Path `"$targetPath`" -NoNewline`""
+            $processId = Start-Process $PSHost -Verb RunAs -PassThru -Wait -ArgumentList "-ExecutionPolicy Bypass -NoProfile -WindowStyle Hidden -Command `"New-Item -Path `"$targetPath`" -ItemType File -Force;Set-Content -Value `"$targetContent`" -Path `"$targetPath`" -NoNewline`""
         }
     
         if ($processId.ExitCode -gt 0) {
@@ -1078,7 +1078,7 @@ $contentForAddToHosts
                 + "Set-ItemProperty -Path '$hostsFilePath' -Name Attributes -Value ('$fileAttributes' -bor [System.IO.FileAttributes]::ReadOnly)" `
                 + "Clear-DnsClientCache"
             }
-            Start-Process powershell -Verb RunAs -ArgumentList "-ExecutionPolicy Bypass -NoProfile -WindowStyle Hidden -Command `"$command`""
+            Start-Process $PSHost -Verb RunAs -ArgumentList "-ExecutionPolicy Bypass -NoProfile -WindowStyle Hidden -Command `"$command`""
         }
     } else {
         $command = @"
@@ -1088,7 +1088,7 @@ $contentForAddToHosts
 | Out-File -FilePath $hostsFilePath -Encoding utf8 -Force
 Clear-DnsClientCache
 "@
-        Start-Process powershell -Verb RunAs -ArgumentList "-ExecutionPolicy Bypass -NoProfile -WindowStyle Hidden -Command `"$command`""
+        Start-Process $PSHost -Verb RunAs -ArgumentList "-ExecutionPolicy Bypass -NoProfile -WindowStyle Hidden -Command `"$command`""
     }
 }
 
@@ -1191,7 +1191,7 @@ $resultContent
             + "Set-ItemProperty -Path '$hostsFilePath' -Name Attributes -Value ('$fileAttributes' -bor [System.IO.FileAttributes]::ReadOnly)" `
             + "Clear-DnsClientCache"
         }
-        Start-Process powershell -Verb RunAs -ArgumentList "-ExecutionPolicy Bypass -NoProfile -WindowStyle Hidden -Command `"$command`""
+        Start-Process $PSHost -Verb RunAs -ArgumentList "-ExecutionPolicy Bypass -NoProfile -WindowStyle Hidden -Command `"$command`""
     }
 }
 
