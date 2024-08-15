@@ -29,7 +29,7 @@ set /a count_target_files=1
 rem f1 mean "file/target 1"
 
 set "target_path_1=d:\TEMP\test\test.exe"
-rem "%ProgramFiles%\CLO Standalone OnlineAuth"
+rem "%ProgramFiles%\path to folder"
 
 set "original_f1_1=FFE1488B4B70E851AA0000488BCBE8A9"
 set "patched_f1_1=9090488B4B70E851AA0000488BCBE8A9"
@@ -79,6 +79,7 @@ rem
 rem [] change text "WRITE HERE NAME OF GROUP FILES ADDED TO HOSTS" in call :block_hosts
 rem []    AND var count_lines_to_hosts inside block_hosts
 rem [] if no need modify hosts file - comment call :block_hosts in MAIN section
+rem [] and write URLs for add to hosts inside function
 rem 
 rem [] if no need block patched files with firewall - comment call :block_targets_with_firewall in MAIN section
 
@@ -105,6 +106,11 @@ rem rem Making text files
 call :create_all_text_files
 
 rem rem Adding lines to hosts
+rem first argument - modifying mode
+rem    mode - FORCE (add group lines text to end hosts file)
+rem       and NOTOVERWRITE (check every URL in hosts file and if URL existing and even commented it will not added)
+rem second argument - just name of comment before lines with urls
+rem    for example text "Adobe servers for license check" will added like # Adobe servers for license check
 call :block_hosts "NOTOVERWRITE" "WRITE HERE NAME OF GROUP FILES ADDED TO HOSTS"
 
 rem rem Block files in Windows Firewall
@@ -335,6 +341,7 @@ rem =====
     set /a count_lines_to_hosts=4
 echo. >>%hosts_file%
 echo # %2 >>%hosts_file%
+rem IMPORTANT - NO TEXT WITH SPACES in URLs list
 for %%A IN (
 
 site.com
@@ -371,20 +378,41 @@ on.more.time
     :loop_block_targets_with_firewall
         if %counter% leq %count_target_files% (
             set /a counter+=1
+            rem target always is file
+            set "IS_DIR=FALSE"
+            set "USE_SUBFOLDERS=FALSE"
             call :set_filename "!target_path_%counter%!"
-            call :block_with_firewall "!target_path_%counter%!" "!fileextension!" "FALSE"
+
+            rem uncomment if need handle folders
+
+            rem rem check if line end is symbol \
+            rem echo !target_path_%counter%! | findstr /e "\" >nul 2>&1
+            rem if %errorlevel% == 0 (
+            rem     set "IS_DIR=TRUE"
+            rem )
+            rem rem check if line ends with text *.exe
+            rem echo !target_path_%counter%! | findstr /e "*.exe" >nul 2>&1
+            rem if %errorlevel% == 0 (
+            rem     set "IS_DIR=TRUE"
+            rem ) else (
+            rem     set "IS_DIR=FALSE"
+            rem )
+
+            call :block_with_firewall "!target_path_%counter%!" !IS_DIR! !USE_SUBFOLDERS!
             goto :loop_block_targets_with_firewall
         )
     exit /b
 
 
-:block_with_firewall <path_to_file_or_folder> <files_extensions_for_block> <search_in_subfolders>
+:block_with_firewall <path_to_file_or_folder> <is_folder_or_file> <search_in_subfolders>
     rem Function for block transferred file or files in transferred folder
     rem     using Windows Firewall
     rem === Arguments:
     rem path_to_file_or_folder - string with path to file or folder.
     rem     It file or folder will detected below in function
-    rem files_extensions_for_block - use only if transferred path to folder. Usually EXE or DLL
+    rem is_folder_or_file - flag for mark if given path for file or folder
+    rem     Detection 'echo %~a1 | find "d" >nul 2>&1' will not work because path with end '*.exe' it use like files
+    rem     but path with end '*.exe' we need mark like folder for use it in loop
     rem search_in_subfolders - block files with selected extension also in all subfolders transferred folder TRUE or FALSE
     if %1 == "" (
         echo Not transferred files or folder for block in firewall!
@@ -395,31 +423,31 @@ on.more.time
         exit /b 1
     )
 
-    set "IS_DIR="
-    echo %~a1 | find "d" >nul 2>&1
-    if %errorlevel% NEQ 0 (
-        rem Block in firewall only given file path
+    set "IS_DIR=%2"
+
+    if %IS_DIR% == FALSE (
+        rem It mean given path to file - so block in firewall only given file path
         call :set_filename %1
-        set "IS_DIR=FALSE"
         rem remove existing firewall rules for file
-        powershell -NoLogo -NoProfile -ExecutionPolicy Bypass -Command "$existRulesForExes = Get-NetFirewallApplicationFilter | Where-Object { $_.Program -in '!file!'' } | Get-NetFirewallRule; if ($existRulesForExes.Length -gt 0) { $existRulesForExes | Remove-NetFirewallRule }"
+        powershell -NoLogo -NoProfile -ExecutionPolicy Bypass -Command "$existRulesForExes = Get-NetFirewallApplicationFilter | Where-Object { $_.Program -in '!file!' } | Get-NetFirewallRule; if ($existRulesForExes.Length -gt 0) { $existRulesForExes | Remove-NetFirewallRule }"
         netsh advfirewall firewall add rule name="Blocked !file!" dir=in action=block program="!file!" enable=yes profile=any >nul 2>&1
         netsh advfirewall firewall add rule name="Blocked !file!" dir=out action=block program="!file!" enable=yes profile=any >nul 2>&1
     ) else (
-        set "IS_DIR=TRUE"
-        if %3 == "FALSE" (
+        rem It mean given path to folder and we can block all .exe in this folder
+        rem     or also recursive block .exe in subfolders
+        if %3 == FALSE (
             rem Block in firewall all files with extension only in given folder
-            for %%G in (%1*%2) do (
+            for %%G in (%1) do (
                 rem remove existing firewall rules for file
-                powershell -NoLogo -NoProfile -ExecutionPolicy Bypass -Command "$existRulesForExes = Get-NetFirewallApplicationFilter | Where-Object { $_.Program -in '%%G'' } | Get-NetFirewallRule; if ($existRulesForExes.Length -gt 0) { $existRulesForExes | Remove-NetFirewallRule }"
+                powershell -NoLogo -NoProfile -ExecutionPolicy Bypass -Command "$existRulesForExes = Get-NetFirewallApplicationFilter | Where-Object { $_.Program -in '%%G' } | Get-NetFirewallRule; if ($existRulesForExes.Length -gt 0) { $existRulesForExes | Remove-NetFirewallRule }"
                 netsh advfirewall firewall add rule name="Blocked %%G" dir=in action=block program="%%G" enable=yes profile=any >nul 2>&1
                 netsh advfirewall firewall add rule name="Blocked %%G" dir=out action=block program="%%G" enable=yes profile=any >nul 2>&1
             )
         ) else (
             rem Block in firewall all files with extension in given folder and all subfolders recursive
-            for /r %%G in (%1*%2) do (
+            for /f "delims=" %%G in ('dir /b /s %1') do (
                 rem remove existing firewall rules for file
-                powershell -NoLogo -NoProfile -ExecutionPolicy Bypass -Command "$existRulesForExes = Get-NetFirewallApplicationFilter | Where-Object { $_.Program -in '%%G'' } | Get-NetFirewallRule; if ($existRulesForExes.Length -gt 0) { $existRulesForExes | Remove-NetFirewallRule }"
+                powershell -NoLogo -NoProfile -ExecutionPolicy Bypass -Command "$existRulesForExes = Get-NetFirewallApplicationFilter | Where-Object { $_.Program -in '%%G' } | Get-NetFirewallRule; if ($existRulesForExes.Length -gt 0) { $existRulesForExes | Remove-NetFirewallRule }"
                 netsh advfirewall firewall add rule name="Blocked %%G" dir=in action=block program="%%G" enable=yes profile=any >nul 2>&1
                 netsh advfirewall firewall add rule name="Blocked %%G" dir=out action=block program="%%G" enable=yes profile=any >nul 2>&1
             )
