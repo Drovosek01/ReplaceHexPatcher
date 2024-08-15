@@ -40,7 +40,7 @@ Together with the wrappers:
 - Byte substitution in multiple files
 - Deleting files and folders
 - Adding lines to the `hosts` file
-- Deleting specific text and addresses from the 'hosts` file
+- Deleting specific text and addresses from the `hosts` file
 - File blocking in Windows Firewall
 - Removing all rules for specific files from Windows Firewall
 - Working with a template file with prepared patterns
@@ -104,13 +104,13 @@ In a separate [file](./docs/docs_EN.md)
 ## ToDo
 
 - [ ] Make support for limiting substitutions of found patterns (if you need to replace not all found sequences)
-- [ ] Do question mark support '??` in templates as in [AutoIt](https://www.autoitscript.com/autoit3/docs/functions/StringRegExp.htm )
+- [ ] Do question mark support `??` in templates as in [AutoIt](https://www.autoitscript.com/autoit3/docs/functions/StringRegExp.htm)
 - [ ] Make regular expression support in hex templates like in `sed` or `perl`
-  - Maybe [this one](https://stackoverflow.com/a/55314611 ) an example will help
+  - Maybe [this one](https://stackoverflow.com/a/55314611) an example will help
 - [ ] Make a search function starting from a certain offset in the file or starting from a certain part of the file in %
 - [ ] To read patterns from a file
 - [ ] Make a check for the necessary permissions immediately after the first pattern found, and not after going through all the patterns in the main script
-- [ ] Add [globbing] support(https://stackoverflow.com/questions/30229465/what-is-file-globbing ) in the lines with the paths to the files/folders to be found in the template file
+- [ ] Add support [globbing](https://stackoverflow.com/questions/30229465/what-is-file-globbing) in the lines with the paths to the files/folders to be found in the template file
 - [ ] Add support for working with relative paths
 - [ ] In the section for deleting files and folders, add support for deleting only all attached data or attached files according to some pattern (for example `\*exe`), although this is probably globbing
 - [ ] It may be worth adding logic for running `.ps1` files as an administrator in the parser script
@@ -129,4 +129,4 @@ All the code was written and tested on Windows 10 x64 22H2.
 
 I have not checked the compatibility of the code and the Powershell functions used with previous versions. You will probably need Powershell 5.1, which comes bundled with Windows 10, to perform them.
 
-If you are running on Windows 7, 8, 8.1, then you will probably need to install [Microsoft.NET Framework 4.8](https://support.microsoft.com/topic/microsoft-net-framework-4-8-offline-installer-for-windows-9d23f658-3b97-68ab-d013-aa3c3e7495e0 ) and [Powershell 5.1](https://www.microsoft.com/download/details.aspx/?id=54616 ) to make the code from this repository work for you.
+If you are running on Windows 7, 8, 8.1, then you will probably need to install [Microsoft.NET Framework 4.8](https://support.microsoft.com/topic/microsoft-net-framework-4-8-offline-installer-for-windows-9d23f658-3b97-68ab-d013-aa3c3e7495e0) and [Powershell 5.1](https://www.microsoft.com/download/details.aspx/?id=54616) to make the code from this repository work for you.
