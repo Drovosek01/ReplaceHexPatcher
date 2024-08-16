@@ -29,11 +29,11 @@ if ($patterns.Count -eq 0) {
 
 $PSHost = If ($PSVersionTable.PSVersion.Major -le 5) {'PowerShell'} Else {'PwSh'}
 [string]$PSBoundParametersStringGlobal = ($PSBoundParameters.GetEnumerator() | ForEach-Object { "-$($_.Key) `"$($_.Value)`"" }) -join " "
-[string]$fileNameOfTarget = [System.IO.Path]::GetFileName("$filePath")
+[string]$fileNameOfTarget = [System.IO.Path]::GetFileName($filePath)
 [string]$tempFolderBaseName = "ReplaceHexBytesAllTmp"
 [string]$varNameTempFolder = "ReplaceHexBytesAll"
 [string]$varNameFoundIndexes = "ReplaceHexBytesAllFoundIndexes"
-
+[string]$filePathFull = [System.IO.Path]::GetFullPath($filePath)
 
 
 # =====
@@ -115,15 +115,21 @@ function Convert-HexStringToByteArray {
     )
 
     if ($hexString.Length % 2 -ne 0) {
-        throw "Invalid hex string length."
+        throw "Invalid hex string length of $hexString"
     }
 
-    $byteArray = New-Object System.Collections.ArrayList
+    [System.Collections.Generic.List[byte]]$byteArray = New-Object System.Collections.Generic.List[byte]
     for ($i = 0; $i -lt $hexString.Length; $i += 2) {
-        [void]$byteArray.Add([Convert]::ToByte($hexString.Substring($i, 2), 16))
+        try {
+            $byteArray.Add([Convert]::ToByte($hexString.Substring($i, 2), 16))
+        }
+        catch {
+            Write-Error "Looks like we have not hex symbols in $hexString"
+            exit 1
+        }
     }
 
-    return [byte[]]$byteArray
+    return [byte[]]$byteArray.ToArray()
 }
 
 
@@ -160,14 +166,14 @@ Then all this is divided into 2 arrays - an array with search patterns
     and an array with replacement patterns and return both arrays
 #>
 function Separate-Patterns {
-    [OutputType([System.Collections.ArrayList[]])]
+    [OutputType([System.Collections.Generic.List[byte[]]])]
     param (
         [Parameter(Mandatory)]
         [string[]]$patternsArray
     )
     
-    [System.Collections.ArrayList]$searchBytes = New-Object System.Collections.ArrayList
-    [System.Collections.ArrayList]$replaceBytes = New-Object System.Collections.ArrayList
+    [System.Collections.Generic.List[byte[]]]$searchBytes = New-Object System.Collections.Generic.List[byte[]]
+    [System.Collections.Generic.List[byte[]]]$replaceBytes = New-Object System.Collections.Generic.List[byte[]]
 
     # Separate pattern-string on search and replace strings
     foreach ($pattern in $patternsArray) {
@@ -181,8 +187,8 @@ function Separate-Patterns {
         [byte[]]$searchHexPattern = (Convert-HexStringToByteArray -hexString $temp[0])
         [byte[]]$replaceHexPattern = (Convert-HexStringToByteArray -hexString $temp[1])
 
-        [void]$searchBytes.Add($searchHexPattern)
-        [void]$replaceBytes.Add($replaceHexPattern)
+        $searchBytes.Add($searchHexPattern)
+        $replaceBytes.Add($replaceHexPattern)
     }
 
     return $searchBytes, $replaceBytes
@@ -205,11 +211,11 @@ function SearchAndReplace-HexPatternInBinaryFile {
         [string]$targetPath,
         [string[]]$patternsArray
     )
-
-    [System.Collections.ArrayList]$searchBytes, [System.Collections.ArrayList]$replaceBytes = Separate-Patterns $patternsArray
+    
+    [System.Collections.Generic.List[byte[]]]$searchBytes, [System.Collections.Generic.List[byte[]]]$replaceBytes = Separate-Patterns $patternsArray
 
     [byte[]]$fileBytes = [System.IO.File]::ReadAllBytes($targetPath)
-    [int[]]$foundPatternsIndexes = @()
+    [System.Collections.Generic.List[int]]$foundPatternsIndexes = New-Object System.Collections.Generic.List[int]
 
     # TODO:
     # Re-write for check if need admins rights after first match hex pattern,
@@ -237,7 +243,7 @@ function SearchAndReplace-HexPatternInBinaryFile {
             if ($match) {
                 [Array]::Copy($replaceBytes[$i], 0, $fileBytes, $foundIndex, $searchLength)
                 $index = $foundIndex + $searchLength
-                $foundPatternsIndexes += $i
+                $foundPatternsIndexes.Add($i)
             } else {
                 $index = $foundIndex + 1
             }
@@ -440,10 +446,10 @@ function HandleReplacedPatternsIndexes {
     [string]$notFoundPatterns = ''
 
     if ($replacedPatternsIndexesCleaned.Count -eq 0 -OR ($replacedPatternsIndexesCleaned.Count -eq 1 -AND $replacedPatternsIndexesCleaned[0] -eq -1)) {
-        Write-Host "No patterns was found in $filePath"
+        Write-Host "No patterns was found in $filePathFull"
     }
     elseif ($replacedPatternsIndexesCleaned.Count -eq $patternsArray.Count) {
-        Write-Host "All hex patterns found and replaced successfully in $filePath"
+        Write-Host "All hex patterns found and replaced successfully in $filePathFull"
     }
     else {
         [int[]]$notReplacedPatternsIndexes = (0..($patternsArray.Count-1)).Where({$_ -notin $replacedPatternsIndexesCleaned})
@@ -451,7 +457,7 @@ function HandleReplacedPatternsIndexes {
             for ($i = 0; $i -lt $notReplacedPatternsIndexes.Count; $i++) {
                 $notFoundPatterns += ' ' + $patternsArray[$notReplacedPatternsIndexes[$i]]
             }
-            Write-Host "Hex patterns" $notFoundPatterns.Trim() "- not found, but other given patterns found and replaced successfully in $filePath" 
+            Write-Host "Hex patterns" $notFoundPatterns.Trim() "- not found, but other given patterns found and replaced successfully in $filePathFull" 
         }
     }
 }
@@ -494,15 +500,15 @@ try {
             }
         }
 
-        [bool]$isTempPatchedFileReplaced = Replace-TempPatchedFileIfExist "$filePath" "$tempFolderPath"
+        [bool]$isTempPatchedFileReplaced = Replace-TempPatchedFileIfExist "$filePathFull" "$tempFolderPath"
 
         if (!$isTempPatchedFileReplaced) {
             Write-Error "Temp patched file not found but should be"
             exit 1
         }
     } else {
-        if ((Test-Path variable:filePath) -and ($filePath.Length -gt 0) -and (Test-Path variable:patternsExtracted) -and ($filePath.Length -gt 0)) {
-            $replacedPatternsIndexes = SearchAndReplace-HexPatternInBinaryFile -targetPath $filePath -patterns $patternsExtracted
+        if ((Test-Path variable:filePathFull) -and ($filePathFull.Length -gt 0) -and (Test-Path variable:patternsExtracted) -and ($filePathFull.Length -gt 0)) {
+            $replacedPatternsIndexes = SearchAndReplace-HexPatternInBinaryFile -targetPath $filePathFull -patterns $patternsExtracted
         } else {
             throw "Not given path for file for patch or patterns"
         }
