@@ -28,7 +28,14 @@ if ($patterns.Count -eq 0) {
 # =====
 
 $PSHost = If ($PSVersionTable.PSVersion.Major -le 5) {'PowerShell'} Else {'PwSh'}
-[string]$PSBoundParametersStringGlobal = ($PSBoundParameters.GetEnumerator() | ForEach-Object { "-$($_.Key) `"$($_.Value)`"" }) -join " "
+[string]$PSBoundParametersStringGlobal = ($PSBoundParameters.GetEnumerator() | ForEach-Object {
+    if (Test-Path $_.Value) {
+        $tempValue = [System.IO.Path]::GetFullPath($_.Value)
+        return "-$($_.Key) `"$tempValue`""
+    }
+    return "-$($_.Key) `"$($_.Value)`""
+}) -join " "
+
 [string]$fileNameOfTarget = [System.IO.Path]::GetFileName($filePath)
 [string]$tempFolderBaseName = "ReplaceHexBytesAllTmp"
 [string]$varNameTempFolder = "ReplaceHexBytesAll"
@@ -214,7 +221,15 @@ function SearchAndReplace-HexPatternInBinaryFile {
     
     [System.Collections.Generic.List[byte[]]]$searchBytes, [System.Collections.Generic.List[byte[]]]$replaceBytes = Separate-Patterns $patternsArray
 
-    [byte[]]$fileBytes = [System.IO.File]::ReadAllBytes($targetPath)
+    try {
+        [byte[]]$fileBytes = [System.IO.File]::ReadAllBytes($targetPath)
+    }
+    catch {
+        # If error when read file it looks like we have not rights
+        # and we need request admin privileges - re-launch script with admin privileges
+        Start-Process -Verb RunAs $PSHost ("-ExecutionPolicy Bypass -NoExit -File `"$PSCommandPath`" $PSBoundParametersStringGlobal")
+        break
+    }
     [System.Collections.Generic.List[int]]$foundPatternsIndexes = New-Object System.Collections.Generic.List[int]
 
     # TODO:
