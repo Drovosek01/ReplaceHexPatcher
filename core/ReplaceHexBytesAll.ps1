@@ -242,7 +242,7 @@ function SearchAndReplace-HexPatternInBinaryFile {
     
         while ($index -lt $fileBytes.Length) {
             $foundIndex = [Array]::IndexOf($fileBytes, $searchBytes[$i][0], $index)
-    
+
             if ($foundIndex -eq -1) {
                 break
             }
@@ -332,7 +332,7 @@ function SearchAndReplace-HexPatternInBinaryFile {
 
     if ($foundPatternsIndexes.Count -eq 0) {
         # It need for prevent error when pass empty array to function
-        $foundPatternsIndexes = @(-1)
+        $foundPatternsIndexes.Add(-1)
     }
 
     return $foundPatternsIndexes
