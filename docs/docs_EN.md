@@ -393,7 +393,10 @@ CMD/Bat scripts
     - I had a desire (although, most likely, this is a personal sporting interest) to make the script possible to run and execute without administrator rights and these rights were requested only when they are needed. Because of this, we had to add and process checks to see if administrator rights were needed for this operation and run separate Powershell code (including multi-line) in separate processes requesting administrator rights. If you remove all these checks and check for rights only at the very beginning, the code will probably lose 1/5 of its weight.
 3. Why is the template not in JSON or XML format?
     - Because these types of file structures have a fairly strict markup format and when filling out a file manually, it would be difficult to write and format text in a JSON or XML structure. I made the template structure such that it forgives errors and is less strict, unlike JSON and XML.
-4. How can I help the project?
+4. Is it possible to use byte search and replace to delete a sequence of bytes?
+    - Yes, but it requires a little modification of the code. It in TODO-list in Readme.
+    - This project (a byte search and replace patcher) is aimed mainly at patching binary files. In my practice (in my tasks), only byte substitution is used. Deleting bytes from a binary file, in most cases, leads to the file becoming broken (broken, non-working), at least in executable files and library files. Deleting bytes in binary files probably makes sense only if you need to delete some meta information, such as a digital signature, which is usually located at the end of exe files.
+5. How can I help the project?
     - Do what is written in TODO (without compromising the functionality and performance of the code)
     - Refactor and improve the performance of the code/ utility
     - Or find someone who will do it

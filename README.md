@@ -104,6 +104,7 @@ In a separate [file](./docs/docs_EN.md)
 ## ToDo
 
 - [ ] Make support for limiting substitutions of found patterns (if you need to replace not all found sequences)
+- [ ] Make byte deletion support
 - [ ] Do question mark support `??` in templates as in [AutoIt](https://www.autoitscript.com/autoit3/docs/functions/StringRegExp.htm)
 - [ ] Make regular expression support in hex templates like in `sed` or `perl`
   - Maybe [this one](https://stackoverflow.com/a/55314611) an example will help
