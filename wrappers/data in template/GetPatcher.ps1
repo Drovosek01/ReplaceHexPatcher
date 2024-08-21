@@ -1,6 +1,6 @@
 param (
     [string]$templateContent,
-    [string]$variables
+    [System.Collections.Hashtable]$vars
 )
 
 
@@ -64,7 +64,8 @@ function GetPatcherFile {
 # =====
 
 try {
-    if ($templateContent -and $variables) {
+    if ($templateContent -and $vars) {
+        $variables = $vars
         GetPatcherFile -content $templateContent
     }
 }
