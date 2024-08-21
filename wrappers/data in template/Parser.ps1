@@ -15,6 +15,8 @@ $patternSplitters = @('/','\','|')
 $comments = @(';;')
 
 $PSHost = If ($PSVersionTable.PSVersion.Major -le 5) {'PowerShell'} Else {'PwSh'}
+$scriptDir = Split-Path $MyInvocation.MyCommand.Path -Parent
+$templateDir = ''
 
 # Text - flags in parse sections
 [string]$makeBackupFlag = 'MAKE BACKUP'
@@ -1475,6 +1477,9 @@ function GetTemplateFile {
     )
 
     if (Test-Path $templateWay 2>$null) {
+        if ($templateWay.Contains($env:Temp)) {
+            return (Get-ChildItem $templateWay).FullName, $fileIsTempFlag
+        }
         return (Get-ChildItem $templateWay).FullName, ''
     } elseif ((Invoke-WebRequest -UseBasicParsing -Uri $templateWay).StatusCode -eq 200) {
         [string]$tempFile = [System.IO.Path]::GetTempFileName()
@@ -1502,7 +1507,9 @@ $watch.Start() # launch timer
 try {
     [string]$fullTemplatePath, [string]$templateFileTempFlag = GetTemplateFile $templatePath
     [string]$cleanedTemplate = CleanTemplate $fullTemplatePath
+    $templateDir = [System.IO.Path]::GetDirectoryName($fullTemplatePath)
 
+    Set-Location $scriptDir
 
 
     # Get content from template file
@@ -1536,6 +1543,9 @@ try {
     if ((($hostsRemoveContent.Length -gt 0) -or ($hostsAddContent.Length -gt 0) -or ($firewallBlockContent.Length -gt 0) -or ($firewallRemoveBlockContent.Length -gt 0) -or ($registryModifyContent.Length -gt 0)) -and (-not (DoWeHaveAdministratorPrivileges))) {
         $argumentsBound = ($PSBoundParameters.GetEnumerator() | ForEach-Object {
             $valuePath = $_.Value
+            if ($_.Key -eq 'templatePath') {
+                $valuePath = $fullTemplatePath
+            }
             if ($valuePath.StartsWith('.')) {
                 $valuePath = $valuePath | Resolve-Path
             }
@@ -1545,8 +1555,7 @@ try {
         Start-Process -Verb RunAs $PSHost ("-ExecutionPolicy Bypass -File `"$PSCommandPath`" $argumentsBound")
         break
     }
-
-
+    
     
     # Start use parsed data from template file
 
