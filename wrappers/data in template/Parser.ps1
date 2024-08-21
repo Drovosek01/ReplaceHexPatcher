@@ -14,6 +14,9 @@ $patternSplitters = @('/','\','|')
 
 $comments = @(';;')
 
+# Here will stored parsed template variables
+[System.Collections.Hashtable]$variables = @{}
+
 $PSHost = If ($PSVersionTable.PSVersion.Major -le 5) {'PowerShell'} Else {'PwSh'}
 $scriptDir = Split-Path $MyInvocation.MyCommand.Path -Parent
 $templateDir = ''
@@ -1513,7 +1516,7 @@ try {
     if ($variablesContent.Length -gt 0) {
         Write-Host
         Write-Host "Start parsing template variables..."
-        [System.Collections.Hashtable]$variables = GetVariables $variablesContent
+        $variables = GetVariables $variablesContent
         Write-Host "Parsing template variables complete"
     }
 
@@ -1528,7 +1531,7 @@ try {
     if ($targetsAndPatternsContent.Length -gt 0) {
         Write-Host
         Write-Host "Start parsing patch targets and apply patches..."
-        DetectFilesAndPatternsAndPatch $patcherFile $targetsAndPatternsContent $variables
+        DetectFilesAndPatternsAndPatch $patcherFile $targetsAndPatternsContent
         Write-Host "Parsing patch targets and apply patches complete"    
     }
 
