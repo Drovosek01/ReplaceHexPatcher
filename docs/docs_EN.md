@@ -130,6 +130,11 @@ In this wrapper script, you can specify in advance the full path (or URL) to the
 If the path (or URL) is not specified, then the parser (file named `Parser.ps1`) will be searched first in the current folder, if it is not there, then the parser will be downloaded via a direct link from the current repository and the path to the downloaded file will be the path to the parser.
 Then the same search procedure will be applied to the file `template.txt`. And the path (or URL) to the patcher must be specified manually, otherwise it will not be passed (and the paths from the template file will be used).
 
+Initially, all the code was written in 1 file `Parser.ps1`, it contained more than 1,500 lines and was not a template parser, but a multi-tool that, after parsing the template, "pulls the strings" of other functions, depending on the sections in the template. A file with a code of 1500 lines is not convenient to maintain and not all functions may be needed, it all depends on the template. Therefore, I have moved all the basic functionality that "pulls the strings" into separate Powershell files and they are imported or downloaded as needed through dot sourcing. These files are like libraries that connect to the main file. I have slightly prepared them for possible independent use, but in order to use them independently, they need to be finalized, but this is not necessary within the framework of this project.
+
+The `Parser.ps1` file has remained a multi-tool, but now it contains less code, which has improved readability.
+I left a version of this file where all the code is inside, but it's not worth using it. Its revision / adaptation / synchronization compared to the version divided into parts will be done "on a whim".
+
 #### Template template.txt
 
 Now about the template. The template structure was made so that the data could be easily filled in manually with the usual Ctrl+C and Ctrl+V, so the data templates are in the format `.json` and `.xml` are not suitable because it is easy to make mistakes and break the structure when filling them out.
