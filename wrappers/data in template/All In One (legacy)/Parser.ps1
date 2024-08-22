@@ -1420,7 +1420,21 @@ function GetVariables {
         }
     }
 
-    return $variables
+    $cleanedVariables = $variables.Clone()
+
+    # Variable values can also contain variables
+    # loop all variable values and replace variables keys to values if it contain it
+    foreach ($key in $variables.Keys) {
+        $variables.Keys | foreach {
+            if ($_ -eq $key) {
+                return
+            }
+
+            $cleanedVariables[$key] = $cleanedVariables[$key].Replace($_, $variables[$_])
+        }
+    }
+
+    return $cleanedVariables
 }
 
 
