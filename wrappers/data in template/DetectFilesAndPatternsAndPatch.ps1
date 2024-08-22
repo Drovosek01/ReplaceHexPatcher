@@ -5,6 +5,45 @@ param (
 )
 
 
+# =====
+# GLOBAL VARIABLES
+# =====
+
+# Same splitter like in core script
+$patternSplitters = @('/','\','|')
+
+
+# =====
+# FUNCTIONS
+# =====
+
+
+<#
+.DESCRIPTION
+Check if string contain any element from array and return $true if contain
+#>
+function DoesStringContainsOneItemArray {
+    [OutputType([bool])]
+    param (
+        [Parameter(Mandatory)]
+        [string]$text,
+        [Parameter(Mandatory)]
+        [array]$items
+    )
+    
+    $containsElement = $false
+
+    foreach ($element in $items) {
+        if ($text -match [regex]::Escape($element)) {
+            $containsElement = $true
+            break
+        }
+    }
+
+    return $containsElement
+}
+
+
 <#
 .DESCRIPTION
 Function gets a text with lines loop all lines

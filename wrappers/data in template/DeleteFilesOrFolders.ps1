@@ -5,6 +5,14 @@ param (
 
 
 # =====
+# GLOBAL VARIABLES
+# =====
+
+# Text - flags in parse sections
+[string]$moveToBinFlag = 'MOVE TO BIN'
+
+
+# =====
 # FUNCTIONS
 # =====
 
