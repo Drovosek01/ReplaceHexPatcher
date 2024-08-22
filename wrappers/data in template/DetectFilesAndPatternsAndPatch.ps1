@@ -4,7 +4,6 @@ param (
     [string]$patcherFilePath
 )
 
-write-host inside file
 
 <#
 .DESCRIPTION
