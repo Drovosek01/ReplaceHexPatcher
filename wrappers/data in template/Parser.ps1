@@ -39,6 +39,7 @@ $templateDir = ''
 [string]$detectFilesAndPatternsAndPatchScriptName = 'DetectFilesAndPatternsAndPatch'
 [string]$removeFromHostsScriptName = 'RemoveFromHosts'
 [string]$addToHostsScriptName = 'AddToHosts'
+[string]$deleteFilesOrFoldersScriptName = 'DeleteFilesOrFolders'
 
 
 # =====
@@ -741,137 +742,6 @@ function CreateAllFilesFromBase64 {
 
 
 <#
-.SYNOPSIS
-Delete items (files and folder) from given lines of string
-#>
-function DeleteFilesOrFolders {
-    param (
-        [Parameter(Mandatory)]
-        [string]$content
-    )
-
-    [string]$cleanedContent = $content.Clone().Trim()
-    
-    [System.Collections.ArrayList]$itemsDeleteWithAdminsPrivileges = New-Object System.Collections.ArrayList
-    [System.Collections.ArrayList]$itemsDeleteWithAdminsPrivilegesAndDisableReadOnly = New-Object System.Collections.ArrayList
-    
-    # replace variables with variables values in all current content
-    foreach ($key in $variables.Keys) {
-        $cleanedContent = $cleanedContent.Replace($key, $variables[$key])
-    }
-    
-    [string[]]$cleanedContentLines = $cleanedContent -split "\n"
-    
-    [bool]$needMoveToBin = $false
-
-    if ($cleanedContentLines[0].Trim() -eq $moveToBinFlag) {
-        $needMoveToBin = $true
-    }
-    
-    foreach ($line in $cleanedContentLines) {
-        # Trim line is important because end line include \n
-        $line = $line.Trim()
-
-        if (-not (Test-Path $line)) {
-            continue
-        }
-
-        [bool]$isFile = -not ((Get-Item $line).PSIsContainer)
-        $isReadOnly, $needRunAS = Test-ReadOnlyAndWriteAccess -targetPath $line -targetIsFile $isFile
-        $fileAttributes = Get-Item -Path $line | Select-Object -ExpandProperty Attributes
-
-        if ($isFile) {
-            if ((-not $isReadOnly) -and (-not $needRunAS)) {
-                if ($needMoveToBin) {
-                    Move-ToRecycleBin -targetPath $line
-                } else {
-                    Remove-Item -Path $line -Recurse
-                }
-            }
-            if ($isReadOnly -and (-not $needRunAS)) {
-                if ($needMoveToBin) {
-                    # files with "readonly" attribute can be moved in Bin without problems without remove this attribute
-                    Move-ToRecycleBin -targetPath $line
-                } else {
-                    Set-ItemProperty -Path $line -Name Attributes -Value ($fileAttributes -bxor [System.IO.FileAttributes]::ReadOnly)
-                    Remove-Item -Path $line -Recurse
-                }
-            }
-            if ($needRunAS -and (-not $isReadOnly)) {
-                [void]$itemsDeleteWithAdminsPrivileges.Add($line)
-            }
-            if ($needRunAS -and $isReadOnly) {
-                [void]$itemsDeleteWithAdminsPrivilegesAndDisableReadOnly.Add($line)
-            }
-        } else {
-            # If it is a folder, it is very difficult to determine in advance whether administrator rights are needed to delete it,
-            #   because files and folders with different rights may be attached to it and deleting a folder
-            #   with such files will require administrator rights.
-            # So the surest way to determine if you need administrator rights to delete a folder is to try deleting the folder
-            try {
-                Remove-Item -Path $line -Recurse -Force -ErrorAction Stop
-            }
-            catch {
-                [void]$itemsDeleteWithAdminsPrivileges.Add($line)
-            }
-        }
-        
-    }
-
-    # For all items requiring administrator rights to delete
-    # combine deleting all items in 1 command and run command with admins privileges
-    [string]$deleteCommand = ''
-
-    if ($needMoveToBin) {
-        [string[]]$allItemsForMoveToBinLikeAdmin = $itemsDeleteWithAdminsPrivileges + $itemsDeleteWithAdminsPrivilegesAndDisableReadOnly
-        [string]$allItemsForMoveToBinInString = "`'" + ($allItemsForMoveToBinLikeAdmin -join "','") + "`'"
-        # IMPORTANT !!!
-        # Do not formate this command and not re-write it
-        # it need for add multiline string to Start-Process command
-        $deleteCommand = @"
-`$shell = New-Object -ComObject Shell.Application
-foreach (`$itemForDelete in @($allItemsForMoveToBinInString)) {
-    [bool]`$isFolder = (Get-Item `"`$itemForDelete`").PSIsContainer
-    `$parentFolder = `$shell.Namespace((Get-Item `"`$itemForDelete`").DirectoryName)
-    if (`$isFolder) {
-        `$parentFolder = `$shell.Namespace((Get-Item `"`$itemForDelete`").Parent.FullName)
-    }
-    `$item = `$parentFolder.ParseName((Get-Item `$itemForDelete).Name)
-    `$item.InvokeVerb('delete')
-}
-"@
-    } else {
-        if ($itemsDeleteWithAdminsPrivileges.Count -gt 0) {
-            foreach ($item in $itemsDeleteWithAdminsPrivileges) {
-                $deleteCommand += "Remove-Item -Path '$item' -Recurse -Force`n"
-            }
-        }
-    
-        if ($itemsDeleteWithAdminsPrivilegesAndDisableReadOnly.Count -gt 0) {
-            foreach ($item in $itemsDeleteWithAdminsPrivilegesAndDisableReadOnly) {
-                $fileAttributes = Get-Item -Path $item | Select-Object -ExpandProperty Attributes
-                # IMPORTANT !!!
-                # Do not formate this command and not re-write it
-                # it need for add multiline string to Start-Process command
-                $deleteCommand += @"
-Set-ItemProperty -Path '$item' -Name Attributes -Value ('$fileAttributes' -bxor [System.IO.FileAttributes]::ReadOnly)
-Remove-Item -Path '$item' -Recurse -Force
-"@
-            }
-        }
-    }
-
-    if ($deleteCommand.Length -gt 0) {
-        $processId = Start-Process $PSHost -Verb RunAs -ArgumentList "-ExecutionPolicy Bypass -NoProfile -WindowStyle Hidden -Command `"$deleteCommand`"" -PassThru -Wait
-        
-        if ($processId.ExitCode -gt 0) {
-            throw "Something happened wrong when process remove files or folders with admins privileges"
-        }
-    }
-}
-
-
-<#
 .DESCRIPTION
 Handle content from template like .reg file
 and apply this .reg file to Windows Registry
@@ -1192,21 +1062,21 @@ try {
         Write-Host "Patcher received"
     }
 
-    # if ($targetsAndPatternsContent.Length -gt 0) {
-    #     Write-Host
-    #     Write-Host "Start parsing patch targets and apply patches..."
-    #     . (Resolve-Path ".\$detectFilesAndPatternsAndPatchScriptName.ps1")
-    #     DetectFilesAndPatternsAndPatch -patcherFile $patcherFile -content $targetsAndPatternsContent
-    #     Write-Host "Parsing patch targets and apply patches complete"    
-    # }
+    if ($targetsAndPatternsContent.Length -gt 0) {
+        Write-Host
+        Write-Host "Start parsing patch targets and apply patches..."
+        . (Resolve-Path ".\$detectFilesAndPatternsAndPatchScriptName.ps1")
+        DetectFilesAndPatternsAndPatch -patcherFile $patcherFile -content $targetsAndPatternsContent
+        Write-Host "Parsing patch targets and apply patches complete"    
+    }
 
-    # if ($hostsRemoveContent.Length -gt 0) {
-    #     Write-Host
-    #     Write-Host "Start parsing lines for remove from hosts..."
-    #     . (Resolve-Path ".\$removeFromHostsScriptName.ps1")
-    #     RemoveFromHosts $hostsRemoveContent
-    #     Write-Host "Removing lines from hosts complete"
-    # }
+    if ($hostsRemoveContent.Length -gt 0) {
+        Write-Host
+        Write-Host "Start parsing lines for remove from hosts..."
+        . (Resolve-Path ".\$removeFromHostsScriptName.ps1")
+        RemoveFromHosts $hostsRemoveContent
+        Write-Host "Removing lines from hosts complete"
+    }
 
     if ($hostsAddContent.Length -gt 0) {
         Write-Host
@@ -1216,12 +1086,13 @@ try {
         Write-Host "Adding lines to hosts complete"
     }
 
-    # if ($deleteNeedContent.Length -gt 0) {
-    #     Write-Host
-    #     Write-Host "Start parsing lines with paths for files and folders delete..."
-    #     DeleteFilesOrFolders $deleteNeedContent
-    #     Write-Host "Deleting files and folders complete"
-    # }
+    if ($deleteNeedContent.Length -gt 0) {
+        Write-Host
+        Write-Host "Start parsing lines with paths for files and folders delete..."
+        . (Resolve-Path ".\$deleteFilesOrFoldersScriptName.ps1")
+        DeleteFilesOrFolders $deleteNeedContent
+        Write-Host "Deleting files and folders complete"
+    }
 
     # if (($createFilesFromTextContent.Count -gt 0) -and ($createFilesFromTextContent[0].Length -gt 0)) {
     #     Write-Host
