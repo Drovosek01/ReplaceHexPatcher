@@ -1228,7 +1228,9 @@ function RegistryFileApply {
 
     [string]$regFileStart = 'Windows Registry Editor Version 5.00'
     
-    [string]$tempFile = [System.IO.Path]::GetTempFileName() + ".reg"
+    [string]$tempFile = [System.IO.Path]::GetTempFileName()
+    Rename-Item -Path $tempFile -NewName "$tempFile.reg"
+    $tempFile = "$tempFile.reg"
 
     [string]$endLinesContent = GetTypeEndLines -content $content
 
@@ -1275,7 +1277,9 @@ function PowershellCodeExecute {
     }
     
     try {
-        [string]$tempFile = [System.IO.Path]::GetTempFileName() + ".ps1"
+        [string]$tempFile = [System.IO.Path]::GetTempFileName()
+        Rename-Item -Path $tempFile -NewName "$tempFile.ps1"
+        $tempFile = "$tempFile.ps1"
         
         # write code from template to temp .ps1 file
         $cleanedContent | Out-File -FilePath $tempFile -Encoding utf8 -Force
@@ -1344,7 +1348,9 @@ function CmdCodeExecute {
     }
 
     try {
-        [string]$tempFile = [System.IO.Path]::GetTempFileName() + ".cmd"
+        [string]$tempFile = [System.IO.Path]::GetTempFileName()
+        Rename-Item -Path $tempFile -NewName "$tempFile.cmd"
+        $tempFile = "$tempFile.cmd"
             
         # write cmd code from template to temp .cmd file
         # need encoding UTF-8 without BOM
