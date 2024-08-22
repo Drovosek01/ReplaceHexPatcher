@@ -4,22 +4,17 @@ param (
 )
 
 
-<#
-.SYNOPSIS
-Detect type end lines from given text
-#>
-function GetTypeEndLines {
-    param (
-        [Parameter(Mandatory)]
-        [string]$content
-    )
-    
-    if ($content.IndexOf("`r`n") -gt 0) {
-        return "`r`n"
-    } else {
-        return "`n"
-    }
-}
+# =====
+# REQUIREMENTS
+# =====
+
+# Function "GetTypeEndLines" wrote in external script where this script importing.
+# If need use this script not like library but like full separated script - write the function in this file or import it
+
+
+# =====
+# FUNCTIONS
+# =====
 
 
 <#

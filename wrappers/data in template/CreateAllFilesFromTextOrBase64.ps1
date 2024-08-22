@@ -5,6 +5,14 @@ param (
 
 
 # =====
+# REQUIREMENTS
+# =====
+
+# Function "DoWeHaveAdministratorPrivileges" wrote in external script where this script importing.
+# If need use this script not like library but like full separated script - write the function in this file or import it  
+
+
+# =====
 # GLOBAL VARIABLES
 # =====
 

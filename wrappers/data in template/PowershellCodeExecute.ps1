@@ -5,6 +5,14 @@ param (
 
 
 # =====
+# REQUIREMENTS
+# =====
+
+# Function "DoWeHaveAdministratorPrivileges" wrote in external script where this script importing.
+# If need use this script not like library but like full separated script - write the function in this file or import it  
+
+
+# =====
 # GLOBAL VARIABLES
 # =====
 
@@ -14,23 +22,6 @@ $PSHost = If ($PSVersionTable.PSVersion.Major -le 5) {'PowerShell'} Else {'PwSh'
 # =====
 # FUNCTIONS
 # =====
-
-
-<#
-.DESCRIPTION
-Function detect if current script run as administrator
-and return bool info about it
-#>
-function DoWeHaveAdministratorPrivileges {
-    [OutputType([bool])]
-    param ()
-
-    if (-NOT ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole] "Administrator")) {
-        return $false
-    } else {
-        return $true
-    }
-}
 
 
 <#
