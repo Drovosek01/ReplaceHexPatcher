@@ -30,6 +30,7 @@ $templateDir = ''
 [string]$deleteFilesOrFoldersScriptName = 'DeleteFilesOrFolders'
 [string]$createAllFilesFromTextOrBase64ScriptName = 'CreateAllFilesFromTextOrBase64'
 [string]$blockOrRemoveFilesFromFirewallScriptName = 'BlockOrRemoveFilesFromFirewall'
+[string]$registryFileApplyScriptName = 'RegistryFileApply'
 
 
 # =====
@@ -344,51 +345,6 @@ function RunPSFile {
 
 <#
 .DESCRIPTION
-Handle content from template like .reg file
-and apply this .reg file to Windows Registry
-#>
-function RegistryFileApply {
-    param (
-        [Parameter(Mandatory)]
-        [string]$content
-    )
-
-    [string]$cleanedContent = $content.Clone().Trim()
-    
-    # replace variables with variables values in all current content
-    foreach ($key in $variables.Keys) {
-        $cleanedContent = $cleanedContent.Replace($key, $variables[$key])
-    }
-
-    [string]$regFileStart = 'Windows Registry Editor Version 5.00'
-    
-    [string]$tempFile = [System.IO.Path]::GetTempFileName() + ".reg"
-
-    [string]$endLinesContent = GetTypeEndLines -content $content
-
-    try {
-        if ($endLinesContent -eq "`n") {
-            $cleanedContent = ($cleanedContent -replace "`n","`r`n")
-        }
-
-        if (-not ($cleanedContent.StartsWith($regFileStart))) {
-            $cleanedContent = $regFileStart + "`r`n" + $cleanedContent
-        }
-
-        # Important that registry file be with CRLF ends of lines and with UTF-16 LE BOM (it Unicode) encoding
-        $cleanedContent | Out-File -FilePath $tempFile -Encoding unicode -Force
-
-        reg.exe import $tempFile 2>$null
-        Remove-Item -Path $tempFile -Force -ErrorAction Stop
-    }
-    catch {
-        Write-Error "Error when trying modify Registry"
-    }
-}
-
-
-<#
-.DESCRIPTION
 Create temp .ps1 file with code from template
 and execute it with admin rights if need
 Then remove temp file
@@ -409,8 +365,10 @@ function PowershellCodeExecute {
     }
     
     try {
-        [string]$tempFile = [System.IO.Path]::GetTempFileName() + ".ps1"
-        
+        [string]$tempFile = [System.IO.Path]::GetTempFileName()
+        Rename-Item -Path $tempFile -NewName "$tempFile.ps1"
+        $tempFile = "$tempFile.ps1"
+
         # write code from template to temp .ps1 file
         $cleanedContent | Out-File -FilePath $tempFile -Encoding utf8 -Force
     
@@ -478,8 +436,10 @@ function CmdCodeExecute {
     }
 
     try {
-        [string]$tempFile = [System.IO.Path]::GetTempFileName() + ".cmd"
-            
+        [string]$tempFile = [System.IO.Path]::GetTempFileName()
+        Rename-Item -Path $tempFile -NewName "$tempFile.cmd"
+        $tempFile = "$tempFile.cmd"
+
         # write cmd code from template to temp .cmd file
         # need encoding UTF-8 without BOM
         [System.IO.File]::WriteAllLines($tempFile, $cleanedContent, [System.Text.UTF8Encoding]($False))
@@ -727,12 +687,13 @@ try {
         Write-Host "Adding rules in firewall complete"
     }
 
-    # if ($registryModifyContent.Length -gt 0) {
-    #     Write-Host
-    #     Write-Host "Start parsing lines for modify registry..."
-    #     RegistryFileApply $registryModifyContent
-    #     Write-Host "Modifying registry complete"
-    # }
+    if ($registryModifyContent.Length -gt 0) {
+        Write-Host
+        Write-Host "Start parsing lines for modify registry..."
+        . (Resolve-Path ".\$registryFileApplyScriptName.ps1")
+        RegistryFileApply $registryModifyContent
+        Write-Host "Modifying registry complete"
+    }
 
     # if ($powershellCodeContent.Length -gt 0) {
     #     Write-Host
