@@ -19,9 +19,9 @@ In this case, the alternative option is not a native method.:
 - sed can be downloaded from (and is included in):
     - [sed-windows](https://github.com/mbuilov/sed-windows)
     - [sed for Windows](https://gnuwin32.sourceforge.net/packages/sed.htm) (GNU for Win32) + [Sourceforge files](https://sourceforge.net/projects/gnuwin32/files/sed/)
-    - [Git for Windows](https://git-scm.com/download/win) или [сайт 2](https://gitforwindows.org/) и использовать `perl` и `sed` которые есть в Git Bash
+    - [Git for Windows](https://git-scm.com/download/win) or [сайт 2](https://gitforwindows.org/) and to use `perl` и `sed` which are available in Git Bash
     - [Cygwin](https://cygwin.com/)
-    - [msysgit](https://github.com/msysgit/msysgit/) или [msys2](https://www.msys2.org/)
+    - [msysgit](https://github.com/msysgit/msysgit/) or [msys2](https://www.msys2.org/)
     - [GNU utilities for Win32](https://unxutils.sourceforge.net/)
     - [sed by Eric Pement](https://www.pement.org/sed/)
 - [HexAndReplace](https://github.com/jjxtra/HexAndReplace)
@@ -113,8 +113,10 @@ In a separate [file](./docs/docs_EN.md)
 - [ ] Make a check for the necessary permissions immediately after the first pattern found, and not after going through all the patterns in the main script
 - [ ] Add support [globbing](https://stackoverflow.com/questions/30229465/what-is-file-globbing) in the lines with the paths to the files/folders to be found in the template file
 - [ ] Add support for working with relative paths
+   - This means the file paths in the template
 - [ ] In the section for deleting files and folders, add support for deleting only all attached data or attached files according to some pattern (for example `\*exe`), although this is probably globbing
 - [ ] It may be worth adding logic for running `.ps1` files as an administrator in the parser script
+   - This means files created from the code in the template
 - [ ] Find a normal way to check if you need administrator rights to delete a folder
   - The current method checks this by creating and deleting an empty file in the required folder (this is wrong from the point of view of logic and performance, but in most situations it works as it should)
 - [ ] Stylize progress bars
