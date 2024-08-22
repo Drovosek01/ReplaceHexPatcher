@@ -38,6 +38,7 @@ $templateDir = ''
 [string]$getPatcherScriptName = 'GetPatcher'
 [string]$detectFilesAndPatternsAndPatchScriptName = 'DetectFilesAndPatternsAndPatch'
 [string]$removeFromHostsScriptName = 'RemoveFromHosts'
+[string]$addToHostsScriptName = 'AddToHosts'
 
 
 # =====
@@ -871,164 +872,6 @@ Remove-Item -Path '$item' -Recurse -Force
 
 
 <#
-.SYNOPSIS
-Return True if last line empty or contain spaces/tabs only
-#>
-function isLastLineEmptyOrSpaces {
-    [OutputType([bool])]
-    param (
-        [Parameter(Mandatory)]
-        $content
-    )
-    
-    if ($content -is [string]) {
-        return (($content -split "`r`n|`n")[-1].Trim() -eq "")
-    } elseif ($content -is [array]) {
-        return ($content[$content.Length - 1].Trim() -eq "")
-    } else {
-        Write-Error "Given variable is not string or array for detect last line"
-        exit 1
-    }
-}
-
-
-<#
-.DESCRIPTION
-Handle content from template, if in just URL so add zeroIP before URL,
-and make other checks
-then formate these lines to string and return formatted string
-#>
-function CombineLinesForHosts {
-    [OutputType([string])]
-    param (
-        [Parameter(Mandatory)]
-        [string]$content
-    )
-    
-    [string]$contentForAddToHosts = ''
-
-    [string[]]$templateContentLines = $content -split "\n"
-
-    if ($templateContentLines[0].Trim().ToUpper() -eq $notModifyFlag) {
-        foreach ($line in $templateContentLines) {
-            # Trim line is important because end line include \n
-            $line = $line.Trim()
-            if ($line -eq $notModifyFlag) {
-                continue
-            }
-
-            $contentForAddToHosts += $line + "`r`n"
-        }
-    } else {
-        foreach ($line in $content -split "\n") {
-            # Trim line is important because end line include \n
-            $line = $line.Trim()
-            if ($line.StartsWith('#') -OR $line.StartsWith($localhostIP)) {
-                $contentForAddToHosts += $line + "`r`n"
-            } else {
-                $contentForAddToHosts += $zeroIP + ' ' + $line + "`r`n"
-            }
-        }
-        $contentForAddToHosts = $contentForAddToHosts.Replace($localhostIP, $zeroIP)
-    }
-
-    return $contentForAddToHosts.Trim()
-}
-
-
-<#
-.SYNOPSIS
-Handle content from template section and add it to hosts file
-#>
-function AddToHosts {
-    param (
-        [Parameter(Mandatory)]
-        [string]$content
-    )
-
-    [string]$cleanedContent = $content.Clone().Trim()
-    
-    # replace variables with variables values in all current content
-    foreach ($key in $variables.Keys) {
-        $cleanedContent = $cleanedContent.Replace($key, $variables[$key])
-    }
-
-    [bool]$needRemoveReadOnlyAttr = $false
-
-    [string]$hostsFilePath = [System.Environment]::SystemDirectory + "\drivers\etc\hosts"
-    $fileAttributes = Get-Item -Path $hostsFilePath | Select-Object -ExpandProperty Attributes
-
-    [string]$contentForAddToHosts = CombineLinesForHosts $cleanedContent
-    [string]$hostsFileContent = [System.IO.File]::ReadAllText($hostsFilePath)
-
-    if (Test-Path $hostsFilePath 2>$null) {
-        # If required lines exist in hosts file - no need touch hosts file
-        if ($hostsFileContent.TrimEnd().EndsWith($contentForAddToHosts)) {
-            return
-        }
-
-        # If hosts file exist check if last line hosts file empty
-        # and add indents from the last line hosts file to new content
-        if (isLastLineEmptyOrSpaces ($hostsFileContent)) {
-            $contentForAddToHosts = "`r`n" + $contentForAddToHosts
-        } else {
-            $contentForAddToHosts = "`r`n`r`n" + $contentForAddToHosts
-        }
-
-        # If file have attribute "read only" remove this attribute for made possible patch file
-        if ($fileAttributes -band [System.IO.FileAttributes]::ReadOnly) {
-            $needRemoveReadOnlyAttr = $true
-        } else {
-            $needRemoveReadOnlyAttr = $false
-        }
-
-        if (DoWeHaveAdministratorPrivileges) {
-            if ($needRemoveReadOnlyAttr) {
-                Set-ItemProperty -Path $hostsFilePath -Name Attributes -Value ($fileAttributes -bxor [System.IO.FileAttributes]::ReadOnly)
-            }
-            Add-Content -Value $contentForAddToHosts -Path $hostsFilePath -Force
-            # Return readonly attribute if it was
-            if ($needRemoveReadOnlyAttr) {
-                Set-ItemProperty -Path $hostsFilePath -Name Attributes -Value ($fileAttributes -bor [System.IO.FileAttributes]::ReadOnly)
-                $needRemoveReadOnlyAttr = $false
-            }
-
-            Clear-DnsClientCache
-        } else {
-            # IMPORTANT !!!
-            # Do not formate this command and not re-write it
-            # it need for add multiline string to Start-Process command
-            $command = @"
-Add-Content -Path $hostsFilePath -Force -Value @'
-$contentForAddToHosts 
-'@
-"@
-            if ($needRemoveReadOnlyAttr) {
-                # If hosts file have attribute "read only" we need remove this attribute before adding lines
-                # and restore "default state" (add this attribute to hosts file) after lines to hosts was added
-                $command = "Set-ItemProperty -Path '$hostsFilePath' -Name Attributes -Value ('$fileAttributes' -bxor [System.IO.FileAttributes]::ReadOnly)" `
-                + "`n" `
-                + $command `
-                + "`n" `
-                + "Set-ItemProperty -Path '$hostsFilePath' -Name Attributes -Value ('$fileAttributes' -bor [System.IO.FileAttributes]::ReadOnly)" `
-                + "Clear-DnsClientCache"
-            }
-            Start-Process $PSHost -Verb RunAs -ArgumentList "-ExecutionPolicy Bypass -NoProfile -WindowStyle Hidden -Command `"$command`""
-        }
-    } else {
-        $command = @"
-@'
-$contentForAddToHosts 
-'@
-| Out-File -FilePath $hostsFilePath -Encoding utf8 -Force
-Clear-DnsClientCache
-"@
-        Start-Process $PSHost -Verb RunAs -ArgumentList "-ExecutionPolicy Bypass -NoProfile -WindowStyle Hidden -Command `"$command`""
-    }
-}
-
-
-<#
 .DESCRIPTION
 Handle content from template like .reg file
 and apply this .reg file to Windows Registry
@@ -1328,10 +1171,9 @@ try {
             "-$($_.Key) `"$($valuePath)`""
         }) -join " "
 
-        Start-Process -Verb RunAs $PSHost ("-ExecutionPolicy Bypass -File `"$PSCommandPath`" $argumentsBound")
+        Start-Process -Verb RunAs $PSHost ("-noexit -ExecutionPolicy Bypass -File `"$PSCommandPath`" $argumentsBound")
         break
     }
-    
     
     # Start use parsed data from template file
 
@@ -1350,86 +1192,87 @@ try {
         Write-Host "Patcher received"
     }
 
-    if ($targetsAndPatternsContent.Length -gt 0) {
-        Write-Host
-        Write-Host "Start parsing patch targets and apply patches..."
-        . (Resolve-Path ".\$detectFilesAndPatternsAndPatchScriptName.ps1")
-        DetectFilesAndPatternsAndPatch -patcherFile $patcherFile -content $targetsAndPatternsContent
-        Write-Host "Parsing patch targets and apply patches complete"    
-    }
+    # if ($targetsAndPatternsContent.Length -gt 0) {
+    #     Write-Host
+    #     Write-Host "Start parsing patch targets and apply patches..."
+    #     . (Resolve-Path ".\$detectFilesAndPatternsAndPatchScriptName.ps1")
+    #     DetectFilesAndPatternsAndPatch -patcherFile $patcherFile -content $targetsAndPatternsContent
+    #     Write-Host "Parsing patch targets and apply patches complete"    
+    # }
 
-    if ($hostsRemoveContent.Length -gt 0) {
-        Write-Host
-        Write-Host "Start parsing lines for remove from hosts..."
-        . (Resolve-Path ".\$removeFromHostsScriptName.ps1")
-        RemoveFromHosts $hostsRemoveContent
-        Write-Host "Removing lines from hosts complete"
-    }
+    # if ($hostsRemoveContent.Length -gt 0) {
+    #     Write-Host
+    #     Write-Host "Start parsing lines for remove from hosts..."
+    #     . (Resolve-Path ".\$removeFromHostsScriptName.ps1")
+    #     RemoveFromHosts $hostsRemoveContent
+    #     Write-Host "Removing lines from hosts complete"
+    # }
 
     if ($hostsAddContent.Length -gt 0) {
         Write-Host
         Write-Host "Start parsing lines for add to hosts..."
+        . (Resolve-Path ".\$addToHostsScriptName.ps1")
         AddToHosts $hostsAddContent
         Write-Host "Adding lines to hosts complete"
     }
 
-    if ($deleteNeedContent.Length -gt 0) {
-        Write-Host
-        Write-Host "Start parsing lines with paths for files and folders delete..."
-        DeleteFilesOrFolders $deleteNeedContent
-        Write-Host "Deleting files and folders complete"
-    }
+    # if ($deleteNeedContent.Length -gt 0) {
+    #     Write-Host
+    #     Write-Host "Start parsing lines with paths for files and folders delete..."
+    #     DeleteFilesOrFolders $deleteNeedContent
+    #     Write-Host "Deleting files and folders complete"
+    # }
 
-    if (($createFilesFromTextContent.Count -gt 0) -and ($createFilesFromTextContent[0].Length -gt 0)) {
-        Write-Host
-        Write-Host "Start parsing lines for create files..."
-        CreateAllFilesFromText $createFilesFromTextContent
-        Write-Host "Creating text files complete"
-    }
+    # if (($createFilesFromTextContent.Count -gt 0) -and ($createFilesFromTextContent[0].Length -gt 0)) {
+    #     Write-Host
+    #     Write-Host "Start parsing lines for create files..."
+    #     CreateAllFilesFromText $createFilesFromTextContent
+    #     Write-Host "Creating text files complete"
+    # }
 
-    if (($createFilesFromBase64Content.Count -gt 0) -and ($createFilesFromBase64Content[0].Length -gt 0)) {
-        Write-Host
-        Write-Host "Start parsing data for create files from base64..."
-        CreateAllFilesFromBase64 $createFilesFromBase64Content
-        Write-Host "Creating files from base64 complete"
-    }
+    # if (($createFilesFromBase64Content.Count -gt 0) -and ($createFilesFromBase64Content[0].Length -gt 0)) {
+    #     Write-Host
+    #     Write-Host "Start parsing data for create files from base64..."
+    #     CreateAllFilesFromBase64 $createFilesFromBase64Content
+    #     Write-Host "Creating files from base64 complete"
+    # }
 
-    if ($firewallRemoveBlockContent.Length -gt 0) {
-        Write-Host
-        Write-Host "Start parsing lines paths for remove from firewall..."
-        RemoveBlockFilesFromFirewall $firewallRemoveBlockContent
-        Write-Host "Remove rules from firewall complete"
-    }
+    # if ($firewallRemoveBlockContent.Length -gt 0) {
+    #     Write-Host
+    #     Write-Host "Start parsing lines paths for remove from firewall..."
+    #     RemoveBlockFilesFromFirewall $firewallRemoveBlockContent
+    #     Write-Host "Remove rules from firewall complete"
+    # }
 
-    if ($firewallBlockContent.Length -gt 0) {
-        Write-Host
-        Write-Host "Start parsing lines paths for block in firewall..."
-        BlockFilesWithFirewall $firewallBlockContent
-        Write-Host "Adding rules in firewall complete"
-    }
+    # if ($firewallBlockContent.Length -gt 0) {
+    #     Write-Host
+    #     Write-Host "Start parsing lines paths for block in firewall..."
+    #     BlockFilesWithFirewall $firewallBlockContent
+    #     Write-Host "Adding rules in firewall complete"
+    # }
 
-    if ($registryModifyContent.Length -gt 0) {
-        Write-Host
-        Write-Host "Start parsing lines for modify registry..."
-        RegistryFileApply $registryModifyContent
-        Write-Host "Modifying registry complete"
-    }
+    # if ($registryModifyContent.Length -gt 0) {
+    #     Write-Host
+    #     Write-Host "Start parsing lines for modify registry..."
+    #     RegistryFileApply $registryModifyContent
+    #     Write-Host "Modifying registry complete"
+    # }
 
-    if ($powershellCodeContent.Length -gt 0) {
-        Write-Host
-        Write-Host "Start execute external Powershell code..."
-        Write-Host
-        PowershellCodeExecute $powershellCodeContent -hideExternalOutput
-        Write-Host "Executing external Powershell code complete"
-    }
+    # if ($powershellCodeContent.Length -gt 0) {
+    #     Write-Host
+    #     Write-Host "Start execute external Powershell code..."
+    #     Write-Host
+    #     PowershellCodeExecute $powershellCodeContent -hideExternalOutput
+    #     Write-Host "Executing external Powershell code complete"
+    # }
 
-    if ($cmdCodeContent.Length -gt 0) {
-        Write-Host
-        Write-Host "Start execute external CMD code..."
-        Write-Host
-        CmdCodeExecute $cmdCodeContent
-        Write-Host "Executing external CMD code complete"
-    }
+    # if ($cmdCodeContent.Length -gt 0) {
+    #     Write-Host
+    #     Write-Host "Start execute external CMD code..."
+    #     Write-Host
+    #     CmdCodeExecute $cmdCodeContent
+    #     Write-Host "Executing external CMD code complete"
+    # }
 
     
 

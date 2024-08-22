@@ -946,7 +946,7 @@ function isLastLineEmptyOrSpaces {
     [OutputType([bool])]
     param (
         [Parameter(Mandatory)]
-        $content
+        [string]$content
     )
     
     if ($content -is [string]) {
