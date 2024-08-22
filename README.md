@@ -96,6 +96,15 @@ Necessary:
 ``
 you can also use the second argument to pass the path to the patch script `-patcherPath "C:\path to\ReplaceHexBytesAll.ps1"` and it will take precedence over those specified in the template
 
+## Where to start
+
+1. Start by manually performing the actions.
+  - This tool automates what is usually done manually - searching and replacing bytes in the hex editor, changing the hosts file, adding or removing rules in the firewall, etc. If you can't do it manually, then not using automated tools is probably a bad idea.
+2. Read the [documentation](./docs/docs_EN.md)
+3. Practice using only the main script [ReplaceHexBytesAll.ps1](./core/ReplaceHexBytesAll.ps1) on some binary file
+4. Decide what you need to do/automate - just byte replacement or something else
+5. Correct/rewrite [template](./wrappers/data%20in%20template/template.txt) for your tasks and test the execution of your template
+
 
 ## Documentation
 
