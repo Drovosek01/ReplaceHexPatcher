@@ -848,27 +848,30 @@ function DeleteFilesOrFolders {
         $fileAttributes = Get-Item -Path $line | Select-Object -ExpandProperty Attributes
 
         if ($isFile) {
-            if ((-not $isReadOnly) -and (-not $needRunAS)) {
-                if ($needMoveToBin) {
-                    Move-ToRecycleBin -targetPath $line
-                } else {
-                    Remove-Item -Path $line -Recurse
+            if (DoWeHaveAdministratorPrivileges -or (-not $needRunAS)) {
+                if (-not $isReadOnly) {
+                    if ($needMoveToBin) {
+                        Move-ToRecycleBin -targetPath $line
+                    } else {
+                        Remove-Item -Path $line -Recurse
+                    }
                 }
-            }
-            if ($isReadOnly -and (-not $needRunAS)) {
-                if ($needMoveToBin) {
-                    # files with "readonly" attribute can be moved in Bin without problems without remove this attribute
-                    Move-ToRecycleBin -targetPath $line
-                } else {
-                    Set-ItemProperty -Path $line -Name Attributes -Value ($fileAttributes -bxor [System.IO.FileAttributes]::ReadOnly)
-                    Remove-Item -Path $line -Recurse
+                if ($isReadOnly) {
+                    if ($needMoveToBin) {
+                        # files with "readonly" attribute can be moved in Bin without problems without remove this attribute
+                        Move-ToRecycleBin -targetPath $line
+                    } else {
+                        Set-ItemProperty -Path $line -Name Attributes -Value ($fileAttributes -bxor [System.IO.FileAttributes]::ReadOnly)
+                        Remove-Item -Path $line -Recurse
+                    }
                 }
-            }
-            if ($needRunAS -and (-not $isReadOnly)) {
-                [void]$itemsDeleteWithAdminsPrivileges.Add($line)
-            }
-            if ($needRunAS -and $isReadOnly) {
-                [void]$itemsDeleteWithAdminsPrivilegesAndDisableReadOnly.Add($line)
+            } else {
+                if ($needRunAS -and (-not $isReadOnly)) {
+                    [void]$itemsDeleteWithAdminsPrivileges.Add($line)
+                }
+                if ($needRunAS -and $isReadOnly) {
+                    [void]$itemsDeleteWithAdminsPrivilegesAndDisableReadOnly.Add($line)
+                }
             }
         } else {
             # If it is a folder, it is very difficult to determine in advance whether administrator rights are needed to delete it,
@@ -883,6 +886,12 @@ function DeleteFilesOrFolders {
             }
         }
         
+    }
+
+    # Check if we have items that require admins rights for delete it
+    [string[]]$allItemsForDeleteLikeAdmin = $itemsDeleteWithAdminsPrivileges + $itemsDeleteWithAdminsPrivilegesAndDisableReadOnly
+    if ($allItemsForDeleteLikeAdmin.Count -eq 0) {
+        return
     }
 
     # For all items requiring administrator rights to delete
