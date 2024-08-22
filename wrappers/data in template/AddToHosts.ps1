@@ -8,6 +8,11 @@ param (
 # GLOBAL VARIABLES
 # =====
 
+$PSHost = If ($PSVersionTable.PSVersion.Major -le 5) {'PowerShell'} Else {'PwSh'}
+
+# Text - flags in parse sections
+[string]$notModifyFlag = 'NOT MODIFY IT'
+
 # IPs
 [string]$localhostIP = '127.0.0.1'
 [string]$zeroIP = '0.0.0.0'

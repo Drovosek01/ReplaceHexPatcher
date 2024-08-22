@@ -8,6 +8,8 @@ param (
 # GLOBAL VARIABLES
 # =====
 
+$PSHost = If ($PSVersionTable.PSVersion.Major -le 5) {'PowerShell'} Else {'PwSh'}
+
 # Text - flags in parse sections
 [string]$moveToBinFlag = 'MOVE TO BIN'
 
@@ -31,6 +33,35 @@ function DoWeHaveAdministratorPrivileges {
     } else {
         return $true
     }
+}
+
+
+<#
+.SYNOPSIS
+Move item (file or folder) to bin
+#>
+function Move-ToRecycleBin {
+    param (
+        [Parameter(Mandatory)]
+        [string]$targetPath
+    )
+    
+    if (-Not (Test-Path $targetPath)) {
+        Write-Error "Not found file for move to bin - $targetPath"
+        return
+    }
+    
+    [bool]$isFolder = (Get-Item $line).PSIsContainer
+    $shell = New-Object -ComObject Shell.Application
+
+    $parentFolder = $shell.Namespace((Get-Item $targetPath).DirectoryName)
+    if ($isFolder) {
+        $parentFolder = $shell.Namespace((Get-Item $targetPath).Parent.FullName)
+    }
+
+    $item = $parentFolder.ParseName((Get-Item $targetPath).Name)
+
+    $item.InvokeVerb("delete")
 }
 
 

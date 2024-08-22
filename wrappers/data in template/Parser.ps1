@@ -18,12 +18,6 @@ $PSHost = If ($PSVersionTable.PSVersion.Major -le 5) {'PowerShell'} Else {'PwSh'
 $scriptDir = Split-Path $MyInvocation.MyCommand.Path -Parent
 $templateDir = ''
 
-# Text - flags in parse sections
-[string]$makeBackupFlag = 'MAKE BACKUP'
-[string]$notModifyFlag = 'NOT MODIFY IT'
-[string]$moveToBinFlag = 'MOVE TO BIN'
-[string]$binaryDataFlag = 'BINARY DATA'
-
 # Other flags for code
 [string]$fileIsTempFlag = 'fileIsTemp'
 

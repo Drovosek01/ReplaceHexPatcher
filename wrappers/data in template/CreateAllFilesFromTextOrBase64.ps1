@@ -8,6 +8,11 @@ param (
 # GLOBAL VARIABLES
 # =====
 
+$PSHost = If ($PSVersionTable.PSVersion.Major -le 5) {'PowerShell'} Else {'PwSh'}
+
+# Text - flags in parse sections
+[string]$binaryDataFlag = 'BINARY DATA'
+
 # Names loaded .ps1 files
 [string]$deleteFilesOrFoldersScriptName = 'DeleteFilesOrFolders'
 
@@ -189,6 +194,7 @@ try {
     if ($templateContent -and $vars) {
         $variables = $vars
         CreateAllFilesFromText -sectionContents $templateContent
+        # CreateAllFilesFromBase64 -sectionContents $createFilesFromBase64Content
     }
 }
 catch {

@@ -787,7 +787,7 @@ function CreateAllFilesFromText {
     )
     
     foreach ($content in $sectionContents) {
-        CreateFilesFromData $content
+        CreateFilesFromData -sectionContent $content
     }
 }
 
@@ -802,7 +802,7 @@ function CreateAllFilesFromBase64 {
     )
     
     foreach ($content in $sectionContents) {
-        CreateFilesFromData $content -isBase64Content
+        CreateFilesFromData -sectionContent $content -isBase64Content
     }
 }
 

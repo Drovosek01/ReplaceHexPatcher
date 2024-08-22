@@ -12,6 +12,9 @@ param (
 # Same splitter like in core script
 $patternSplitters = @('/','\','|')
 
+# Text - flags in parse sections
+[string]$makeBackupFlag = 'MAKE BACKUP'
+
 
 # =====
 # FUNCTIONS
