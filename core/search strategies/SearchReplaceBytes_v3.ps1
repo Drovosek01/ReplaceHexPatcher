@@ -46,7 +46,7 @@ function Convert-HexStringToByteArray {
     [System.Collections.Generic.List[byte]]$byteArray = New-Object System.Collections.Generic.List[byte]
     for ($i = 0; $i -lt $hexString.Length; $i += 2) {
         try {
-            [void]($byteArray.Add([Convert]::ToByte($hexString.Substring($i, 2), 16)))
+            $byteArray.Add([Convert]::ToByte($hexString.Substring($i, 2), 16))
         }
         catch {
             Write-Error "Looks like we have not hex symbols in $hexString"
@@ -144,42 +144,52 @@ function SearchAndReplace-HexPatternInBinaryFile {
     $stream = [System.IO.File]::Open($targetPath, [System.IO.FileMode]::Open, [System.IO.FileAccess]::ReadWrite)
     [int]$bufferSize = [System.UInt16]::MaxValue
     [int]$position = 0;
-    [int]$foundPosition = -1;
-    [byte[]]$buffer = New-Object byte[] ($bufferSize + $searchBytes[0].Length - 1)
     [int]$bytesRead = 0
     $stream.Position = 0
 
     # !!!
-    # This algorithm ported from https://github.com/jjxtra/HexAndReplace/blob/d6dc05b6eef242149bcbb876a1f923f4311fd08b/BinaryReplacer.cs
+    # This version algorithm is mixed v1 + v2
     # !!!
 
     for ($p = 0; $p -lt $patternsArray.Count; $p++) {
+        [byte[]]$buffer = New-Object byte[] ($bufferSize + $searchBytes[$p].Length - 1)
         [void]($stream.Seek(0, [System.IO.SeekOrigin]::Begin))
-        
+        [int]$searchLength = $searchBytes[$p].Length
+
         while (($bytesRead = $stream.Read($buffer, 0, $buffer.Length)) -gt 0) {
-            for ($i = 0; $i -le $bytesRead - $searchBytes[$p].Length; $i++) {
-                for ($j = 0; $j -lt $searchBytes[$p].Length; $j++) {
-                    if ($buffer[$i + $j] -ne $searchBytes[$p][$j]) {
-                        break
-                    } elseif ($j -eq $searchBytes[$p].Length - 1) {
-                        [void]($stream.Seek($position + $i, [System.IO.SeekOrigin]::Begin))
-                        $stream.Write($replaceBytes[$p], 0, $replaceBytes[$p].Length)
+            [int]$index = 0
 
-                        if ($foundPosition -eq -1) {
-                            [void]($foundPatternsIndexes.Add($p))
-                        }
+            while ($index -le ($bytesRead - $searchLength)) {
+                $foundIndex = [Array]::IndexOf($buffer, $searchBytes[$p][0], $index)
 
+                if ($foundIndex -eq -1) {
+                    break
+                }
+        
+                $match = $true
+                for ($x = 1; $x -lt $searchLength; $x++) {
+                    if ($buffer[$foundIndex + $x] -ne $searchBytes[$p][$x]) {
+                        $match = $false
                         break
                     }
                 }
+                
+                if ($match) {
+                    [void]($stream.Seek($position + $foundIndex, [System.IO.SeekOrigin]::Begin))
+                    $stream.Write($replaceBytes[$p], 0, $replaceBytes[$p].Length)
+
+                    $index = $foundIndex + $searchLength
+                    [void]($foundPatternsIndexes.Add($p))
+                } else {
+                    $index = $foundIndex + 1
+                }
+
             }
 
-            $position += $bytesRead - $searchBytes[$p].Length + 1
-
-            if ($position -gt ($stream.Length - $searchBytes[$p].Length)) {
+            $position += $bytesRead - $searchLength + 1
+            if ($position -gt ($stream.Length - $searchLength)) {
                 break
             }
-            
             [void]($stream.Seek($position, [System.IO.SeekOrigin]::Begin))
         }
     }
@@ -188,7 +198,7 @@ function SearchAndReplace-HexPatternInBinaryFile {
 
     if ($foundPatternsIndexes.Count -eq 0) {
         # It need for prevent error when pass empty array to function
-        [void]($foundPatternsIndexes.Add(-1))
+        $foundPatternsIndexes.Add(-1)
     }
 
     return [int[]]$foundPatternsIndexes.ToArray()
