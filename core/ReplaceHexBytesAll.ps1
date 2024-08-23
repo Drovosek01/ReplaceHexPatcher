@@ -6,7 +6,7 @@ param (
     [Parameter(Mandatory)]
     [string]$filePath,
     [switch]$makeBackup = $false,
-    # One pattern is string with search/replace hex like "AABB/1122" or "AABB,1122" or "\xAA\xBB/\x11\x22" or "A A BB CC|1 12 233"
+    # One pattern is string with search/replace hex like "AABB/1122" or "\xAA\xBB/\x11\x22" or "A A BB CC|1 12 233"
     [Parameter(Mandatory)]
     [string[]]$patterns,
     [string[]]$lastArgs
@@ -128,7 +128,7 @@ function Convert-HexStringToByteArray {
     [System.Collections.Generic.List[byte]]$byteArray = New-Object System.Collections.Generic.List[byte]
     for ($i = 0; $i -lt $hexString.Length; $i += 2) {
         try {
-            $byteArray.Add([Convert]::ToByte($hexString.Substring($i, 2), 16))
+            [void]($byteArray.Add([Convert]::ToByte($hexString.Substring($i, 2), 16)))
         }
         catch {
             Write-Error "Looks like we have not hex symbols in $hexString"
@@ -194,8 +194,8 @@ function Separate-Patterns {
         [byte[]]$searchHexPattern = (Convert-HexStringToByteArray -hexString $temp[0])
         [byte[]]$replaceHexPattern = (Convert-HexStringToByteArray -hexString $temp[1])
 
-        $searchBytes.Add($searchHexPattern)
-        $replaceBytes.Add($replaceHexPattern)
+        [void]($searchBytes.Add($searchHexPattern))
+        [void]($replaceBytes.Add($replaceHexPattern))
     }
 
     return $searchBytes, $replaceBytes
@@ -258,7 +258,7 @@ function SearchAndReplace-HexPatternInBinaryFile {
             if ($match) {
                 [Array]::Copy($replaceBytes[$i], 0, $fileBytes, $foundIndex, $searchLength)
                 $index = $foundIndex + $searchLength
-                $foundPatternsIndexes.Add($i)
+                [void]($foundPatternsIndexes.Add($i))
             } else {
                 $index = $foundIndex + 1
             }
@@ -332,10 +332,10 @@ function SearchAndReplace-HexPatternInBinaryFile {
 
     if ($foundPatternsIndexes.Count -eq 0) {
         # It need for prevent error when pass empty array to function
-        $foundPatternsIndexes.Add(-1)
+        [void]($foundPatternsIndexes.Add(-1))
     }
 
-    return $foundPatternsIndexes
+    return [int[]]$foundPatternsIndexes.ToArray()
 }
 
 <#
