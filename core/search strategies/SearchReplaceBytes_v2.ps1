@@ -46,7 +46,7 @@ function Convert-HexStringToByteArray {
     [System.Collections.Generic.List[byte]]$byteArray = New-Object System.Collections.Generic.List[byte]
     for ($i = 0; $i -lt $hexString.Length; $i += 2) {
         try {
-            [void]($byteArray.Add([Convert]::ToByte($hexString.Substring($i, 2), 16)))
+            $byteArray.Add([Convert]::ToByte($hexString.Substring($i, 2), 16))
         }
         catch {
             Write-Error "Looks like we have not hex symbols in $hexString"
@@ -139,43 +139,52 @@ function SearchAndReplace-HexPatternInBinaryFile {
     
     [System.Collections.Generic.List[byte[]]]$searchBytes, [System.Collections.Generic.List[byte[]]]$replaceBytes = Separate-Patterns $patternsArray
 
-    [byte[]]$fileBytes = [System.IO.File]::ReadAllBytes($targetPath)
-
     [System.Collections.Generic.List[int]]$foundPatternsIndexes = New-Object System.Collections.Generic.List[int]
 
-    for ($i = 0; $i -lt $patternsArray.Count; $i++) {
-        [int]$searchLength = $searchBytes[$i].Length
-        [int]$index = 0
-    
-        while ($index -lt $fileBytes.Length) {
-            $foundIndex = [Array]::IndexOf($fileBytes, $searchBytes[$i][0], $index)
+    $stream = [System.IO.File]::Open($targetPath, [System.IO.FileMode]::Open, [System.IO.FileAccess]::ReadWrite)
+    [int]$bufferSize = [System.UInt16]::MaxValue
+    [int]$position = 0;
+    [int]$foundPosition = -1;
+    [byte[]]$buffer = New-Object byte[] ($bufferSize + $searchBytes[0].Length - 1)
+    [int]$bytesRead = 0
+    $stream.Position = 0
 
-            if ($foundIndex -eq -1) {
-                break
-            }
-    
-            $match = $true
-            for ($x = 1; $x -lt $searchLength; $x++) {
-                if ($fileBytes[$foundIndex + $x] -ne $searchBytes[$i][$x]) {
-                    $match = $false
-                    break
+    # !!!
+    # This algorithm ported from https://github.com/jjxtra/HexAndReplace/blob/d6dc05b6eef242149bcbb876a1f923f4311fd08b/BinaryReplacer.cs
+    # !!!
+
+    for ($p = 0; $p -lt $patternsArray.Count; $p++) {
+        [void]($stream.Seek(0, [System.IO.SeekOrigin]::Begin))
+        
+        while (($bytesRead = $stream.Read($buffer, 0, $buffer.Length)) -gt 0) {
+            for ($i = 0; $i -le $bytesRead - $searchBytes[$p].Length; $i++) {
+                for ($j = 0; $j -lt $searchBytes[$p].Length; $j++) {
+                    if ($buffer[$i + $j] -ne $searchBytes[$p][$j]) {
+                        break
+                    } elseif ($j -eq $searchBytes[$p].Length - 1) {
+                        [void]($stream.Seek($position + $i, [System.IO.SeekOrigin]::Begin))
+                        $stream.Write($replaceBytes[$p], 0, $replaceBytes[$p].Length)
+
+                        if ($foundPosition -eq -1) {
+                            [void]($foundPatternsIndexes.Add($p))
+                        }
+
+                        break
+                    }
                 }
             }
-    
-            if ($match) {
-                [Array]::Copy($replaceBytes[$i], 0, $fileBytes, $foundIndex, $searchLength)
-                $index = $foundIndex + $searchLength
-                $foundPatternsIndexes.Add($i)
-            } else {
-                $index = $foundIndex + 1
+
+            $position += $bytesRead - $searchBytes[$p].Length + 1
+
+            if ($position -gt ($stream.Length - $searchBytes[$p].Length)) {
+                break
             }
+            
+            [void]($stream.Seek($position, [System.IO.SeekOrigin]::Begin))
         }
     }
-
-    # Not re-write file if hex-patterns not found in file
-    if ($foundPatternsIndexes.Count -gt 0) {
-        [System.IO.File]::WriteAllBytes("$targetPath", $fileBytes)
-    }
+    
+    $stream.Close()
 
     if ($foundPatternsIndexes.Count -eq 0) {
         # It need for prevent error when pass empty array to function
