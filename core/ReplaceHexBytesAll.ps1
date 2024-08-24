@@ -219,7 +219,9 @@ function Apply-HexPatternInBinaryFile {
         [Parameter(Mandatory)]
         [string]$targetPath,
         [Parameter(Mandatory)]
-        [string[]]$patternsArray
+        [string[]]$patternsArray,
+        [Parameter(Mandatory)]
+        [bool]$needMakeBackup
     )
 
     [string]$backupAbsoluteName = "$targetPath.bak"
@@ -252,7 +254,7 @@ function Apply-HexPatternInBinaryFile {
         Set-ItemProperty -Path "$targetPath" -Name Attributes -Value ($fileAttributes -bxor [System.IO.FileAttributes]::ReadOnly)
     }
 
-    if ($makeBackup) {
+    if ($needMakeBackup) {
         if (Test-Path $backupAbsoluteName) {
             $fileAttributesForBackup = Get-Item -Path "$backupAbsoluteName" | Select-Object -ExpandProperty Attributes
 
@@ -289,7 +291,7 @@ function Apply-HexPatternInBinaryFile {
 
         # If no patterns found - backuped file was just duplicate original file
         # no need backup file because original file was not modified
-        if ($makeBackup) {
+        if ($needMakeBackup) {
             Remove-Item -Path $backupAbsoluteName -Force
         }
     }
@@ -483,7 +485,7 @@ try {
         $patternsExtracted = $patterns
     }
 
-    $replacedPatternsIndexes = Apply-HexPatternInBinaryFile -targetPath $filePathFull -patterns $patternsExtracted
+    $replacedPatternsIndexes = Apply-HexPatternInBinaryFile -targetPath $filePathFull -patterns $patternsExtracted -needMakeBackup $makeBackup
 
     HandleReplacedPatternsIndexes $patternsExtracted $replacedPatternsIndexes
 } catch {
