@@ -43,10 +43,6 @@ $PSHost = If ($PSVersionTable.PSVersion.Major -le 5) {'PowerShell'} Else {'PwSh'
     return "-$($_.Key) `"$($_.Value)`""
 }) -join " "
 
-[string]$fileNameOfTarget = [System.IO.Path]::GetFileName($filePath)
-[string]$tempFolderBaseName = "ReplaceHexBytesAllTmp"
-[string]$varNameTempFolder = "ReplaceHexBytesAll"
-[string]$varNameFoundIndexes = "ReplaceHexBytesAllFoundIndexes"
 [string]$filePathFull = [System.IO.Path]::GetFullPath($filePath)
 
 
@@ -70,7 +66,7 @@ function Test-ReadOnlyAndWriteAccess {
         [string]$targetPath
     )
     
-    $fileAttributes = Get-Item -Path "$targetPath" | Select-Object -ExpandProperty Attributes
+    $fileAttributes = Get-Item -Path "$targetPath" -Force | Select-Object -ExpandProperty Attributes
     [bool]$isReadOnly = $false
     [bool]$needRunAs = $false
 
@@ -246,7 +242,7 @@ function Apply-HexPatternInBinaryFile {
     }
 
     $fileAcl = Get-Acl "$targetPath"
-    $fileAttributes = Get-Item -Path "$targetPath" | Select-Object -ExpandProperty Attributes
+    $fileAttributes = Get-Item -Path "$targetPath" -Force | Select-Object -ExpandProperty Attributes
 
     KillExeTasks $targetPath
 
@@ -256,7 +252,7 @@ function Apply-HexPatternInBinaryFile {
 
     if ($needMakeBackup) {
         if (Test-Path $backupAbsoluteName) {
-            $fileAttributesForBackup = Get-Item -Path "$backupAbsoluteName" | Select-Object -ExpandProperty Attributes
+            $fileAttributesForBackup = Get-Item -Path "$backupAbsoluteName" -Force | Select-Object -ExpandProperty Attributes
 
             Set-ItemProperty -Path "$backupAbsoluteName" -Name Attributes -Value ($fileAttributesForBackup -bxor [System.IO.FileAttributes]::ReadOnly)
         }
