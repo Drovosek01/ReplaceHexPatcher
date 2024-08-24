@@ -29,10 +29,17 @@ if ($patterns.Count -eq 0) {
 
 $PSHost = If ($PSVersionTable.PSVersion.Major -le 5) {'PowerShell'} Else {'PwSh'}
 [string]$PSBoundParametersStringGlobal = ($PSBoundParameters.GetEnumerator() | ForEach-Object {
+    if ($_.Value -is [array]) {
+        # If value is array - it array with patterns and we need concat it to 1 string
+        $tempValue = $_.Value -join ','
+        return "-$($_.Key) `"$tempValue`""
+    }
+
     if (Test-Path $_.Value) {
         $tempValue = [System.IO.Path]::GetFullPath($_.Value)
         return "-$($_.Key) `"$tempValue`""
     }
+
     return "-$($_.Key) `"$($_.Value)`""
 }) -join " "
 
@@ -218,11 +225,47 @@ function SearchAndReplace-HexPatternInBinaryFile {
         [string]$targetPath,
         [string[]]$patternsArray
     )
+
+    # we check outside this function if need relaunch with Admins rights
+    # here we need know only about attribute "Read only" for file
+    $isReadOnly, $needRunAS = Test-ReadOnlyAndWriteAccess $filePathFull
+
+    $fileAcl = Get-Acl "$targetPath"
+    $fileAttributes = Get-Item -Path "$targetPath" | Select-Object -ExpandProperty Attributes
+    [string]$backupAbsoluteName = "$targetPath.bak"
+
+    if ($isReadOnly) {
+        Set-ItemProperty -Path "$targetPath" -Name Attributes -Value ($fileAttributes -bxor [System.IO.FileAttributes]::ReadOnly)
+    }
+
+    KillExeTasks $targetPath
+
+    if ($makeBackup) {
+        if (Test-Path $backupAbsoluteName) {
+            $fileAttributesForBackup = Get-Item -Path "$backupAbsoluteName" | Select-Object -ExpandProperty Attributes
+
+            Set-ItemProperty -Path "$backupAbsoluteName" -Name Attributes -Value ($fileAttributesForBackup -bxor [System.IO.FileAttributes]::ReadOnly)
+        }
+
+        # with copying it wil be replaced
+        Copy-Item -Path "$targetPath" -Destination "$backupAbsoluteName"
+
+        # restore attribute "Read Only" if it was
+        if ($isReadOnly) {
+            Set-ItemProperty -Path "$backupAbsoluteName" -Name Attributes -Value ($fileAttributes -bor [System.IO.FileAttributes]::ReadOnly)
+        }
+
+        # restore file permissions
+        $fileAcl | Set-Acl "$backupAbsoluteName"
+    }
     
+
+
+
     [System.Collections.Generic.List[byte[]]]$searchBytes, [System.Collections.Generic.List[byte[]]]$replaceBytes = Separate-Patterns $patternsArray
 
     try {
-        [byte[]]$fileBytes = [System.IO.File]::ReadAllBytes($targetPath)
+        $stream = [System.IO.File]::Open($targetPath, [System.IO.FileMode]::Open, [System.IO.FileAccess]::ReadWrite)
     }
     catch {
         # If error when read file it looks like we have not rights
@@ -236,171 +279,87 @@ function SearchAndReplace-HexPatternInBinaryFile {
     # Re-write for check if need admins rights after first match hex pattern,
     #    not after all patterns will found
 
-    for ($i = 0; $i -lt $patternsArray.Count; $i++) {
-        [int]$searchLength = $searchBytes[$i].Length
-        [int]$index = 0
+    [int]$bufferSize = [System.UInt16]::MaxValue
+    $stream.Position = 0
     
-        while ($index -lt $fileBytes.Length) {
-            $foundIndex = [Array]::IndexOf($fileBytes, $searchBytes[$i][0], $index)
+    for ($p = 0; $p -lt $patternsArray.Count; $p++) {
+        [int]$position = 0
+        [int]$bytesRead = 0
+        [byte[]]$buffer = New-Object byte[] ($bufferSize + $searchBytes[$p].Length - 1)
+        [void]($stream.Seek(0, [System.IO.SeekOrigin]::Begin))
+        [int]$searchLength = $searchBytes[$p].Length
 
-            if ($foundIndex -eq -1) {
-                break
-            }
-    
-            $match = $true
-            for ($x = 1; $x -lt $searchLength; $x++) {
-                if ($fileBytes[$foundIndex + $x] -ne $searchBytes[$i][$x]) {
-                    $match = $false
+        while (($bytesRead = $stream.Read($buffer, 0, $buffer.Length)) -gt 0) {
+            [int]$index = 0
+            
+            while ($index -le ($bytesRead - $searchLength)) {
+                $foundIndex = [Array]::IndexOf($buffer, $searchBytes[$p][0], $index)
+
+                if ($foundIndex -eq -1) {
                     break
                 }
-            }
-    
-            if ($match) {
-                [Array]::Copy($replaceBytes[$i], 0, $fileBytes, $foundIndex, $searchLength)
-                $index = $foundIndex + $searchLength
-                [void]($foundPatternsIndexes.Add($i))
-            } else {
-                $index = $foundIndex + 1
-            }
-        }
-    }
+        
+                $match = $true
+                for ($x = 1; $x -lt $searchLength; $x++) {
+                    if ($buffer[$foundIndex + $x] -ne $searchBytes[$p][$x]) {
+                        $match = $false
+                        break
+                    }
+                }
+                
+                if ($match) {
+                    [void]($stream.Seek($position + $foundIndex, [System.IO.SeekOrigin]::Begin))
+                    $stream.Write($replaceBytes[$p], 0, $replaceBytes[$p].Length)
 
-    # TODO:
-    # Need to refactor this part of the code - put it in a separate function.
-    # It will be more logical and improve readability.
-    # But when the byte array leaves the limits of this function, the speed of the script deteriorates by 3 times.
-    # I do not yet know why this is so and how to fix it.
-
-    # Not re-write file if hex-patterns not found in file
-    if ($foundPatternsIndexes.Count -gt 0) {
-        $isReadOnly, $needRunAS = Test-ReadOnlyAndWriteAccess $targetPath
-        $tempFolderForPatchedFilePath = ''
-
-        if ($needRunAS -and !(DoWeHaveAdministratorPrivileges)) {
-            # create temp file with replaced bytes
-            $folderIndex = 0
-            while ($tempFolderForPatchedFilePath.Length -eq 0) {
-                $tempPath = "${env:Temp}\$tempFolderBaseName${folderIndex}"
-
-                if (Test-Path "$tempPath") {
-                    $folderIndex++
+                    $index = $foundIndex + $searchLength
+                    [void]($foundPatternsIndexes.Add($p))
                 } else {
-                    [void](New-Item -Path "$tempPath" -ItemType Directory)
-                    $tempFolderForPatchedFilePath = "$tempPath"
-                }
-            }
-
-            [System.IO.File]::WriteAllBytes("${tempFolderForPatchedFilePath}\${fileNameOfTarget}", $fileBytes)
-
-            # relaunch current script in separate process with Admins privileges
-            [string]$lastArgsForProcess = "$varNameTempFolder=`"$tempFolderForPatchedFilePath`",$varNameFoundIndexes=`"$($foundPatternsIndexes -join ' ')`""
-            Start-Process -Verb RunAs $PSHost ("-ExecutionPolicy Bypass -File `"$PSCommandPath`" $PSBoundParametersStringGlobal -lastArgs $lastArgsForProcess")
-            break
-        } else {
-            $fileAcl = Get-Acl "$targetPath"
-            $fileAttributes = Get-Item -Path "$targetPath" | Select-Object -ExpandProperty Attributes
-            [string]$backupFullName = "$targetPath.bak"
-
-            KillExeTasks $targetPath
-
-            if ($isReadOnly) {
-                Set-ItemProperty -Path "$targetPath" -Name Attributes -Value ($fileAttributes -bxor [System.IO.FileAttributes]::ReadOnly)
-            }
-
-            if ($makeBackup) {
-                if (Test-Path $backupFullName) {
-                    Set-ItemProperty -Path "$backupFullName" -Name Attributes -Value ($fileAttributes -bxor [System.IO.FileAttributes]::ReadOnly)
+                    $index = $foundIndex + 1
                 }
 
-                Copy-Item -Path "$targetPath" -Destination "$backupFullName"
-        
-                if ($isReadOnly) {
-                    Set-ItemProperty -Path "$backupFullName" -Name Attributes -Value ($fileAttributes -bor [System.IO.FileAttributes]::ReadOnly)
-                }
-                $fileAcl | Set-Acl "$backupFullName"
             }
-            
-            [System.IO.File]::WriteAllBytes("$targetPath", $fileBytes)
-            
-            $fileAcl | Set-Acl "$targetPath"
-        }
-        
-        if ($isReadOnly) {
-            Set-ItemProperty -Path "$targetPath" -Name Attributes -Value ($fileAttributes -bor [System.IO.FileAttributes]::ReadOnly)
+
+            $position += $bytesRead - $searchLength + 1
+            if ($position -gt ($stream.Length - $searchLength)) {
+                break
+            }
+            [void]($stream.Seek($position, [System.IO.SeekOrigin]::Begin))
         }
     }
+
+
+
+
+    # restore file permissions
+    $fileAcl | Set-Acl "$targetPath"
+
+    # restore attribute "Read Only" if it was
+    if ($isReadOnly) {
+        Set-ItemProperty -Path "$targetPath" -Name Attributes -Value ($fileAttributes -bor [System.IO.FileAttributes]::ReadOnly)
+    }
+
+
+
+
+
+    
+
+    $stream.Close()
 
     if ($foundPatternsIndexes.Count -eq 0) {
         # It need for prevent error when pass empty array to function
         [void]($foundPatternsIndexes.Add(-1))
+
+        # If no patterns found - backuped file was just duplicate original file
+        # no need backup file because original file was not modified
+        if ($makeBackup) {
+            Remove-Item -Path $backupAbsoluteName -Force
+        }
     }
 
     return [int[]]$foundPatternsIndexes.ToArray()
 }
 
-<#
-.DESCRIPTION
-This function will be called only if the script is restarted on behalf of the administrator.
-When restarting as an administrator, the patched file is saved to a temporary folder so as not to search for all the templates again.
-This function replaces the original file with a previously saved patched file from a temporary folder
-#>
-function Replace-TempPatchedFileIfExist {
-    [OutputType([bool])]
-    param (
-        [Parameter(Mandatory)]
-        [string]$targetPath,
-        [Parameter(Mandatory)]
-        [string]$tempFolderForPatchedFilePath
-    )
-
-    $isReadOnly, $needRunAS = Test-ReadOnlyAndWriteAccess $targetPath
-    $fileAttributes = Get-Item -Path "$targetPath" | Select-Object -ExpandProperty Attributes
-    $fileAcl = Get-Acl "$targetPath"
-    [string]$backupFullName = "$targetPath.bak"
-
-    KillExeTasks $targetPath
-    
-    if ($isReadOnly) {
-        Set-ItemProperty -Path "$targetPath" -Name Attributes -Value ($fileAttributes -bxor [System.IO.FileAttributes]::ReadOnly)
-    }
-    
-    if ($makeBackup) {
-        if (Test-Path $backupFullName) {
-            Set-ItemProperty -Path "$backupFullName" -Name Attributes -Value ($fileAttributes -bxor [System.IO.FileAttributes]::ReadOnly)
-        }
-
-        Copy-Item -Path "$targetPath" -Destination "$backupFullName"
-        
-        if ($isReadOnly) {
-            Set-ItemProperty -Path "$backupFullName" -Name Attributes -Value ($fileAttributes -bor [System.IO.FileAttributes]::ReadOnly)
-        }
-        $fileAcl | Set-Acl "$backupFullName"
-    }
-
-    # check exist temp folder for backuped patched file and just move backuped file
-    # or re-write existing file
-    [string]$patchedTempFile = "$tempFolderForPatchedFilePath\$fileNameOfTarget"
-    if (Test-Path "$patchedTempFile") {
-        Remove-Item -Path $targetPath
-
-        KillExeTasks $patchedTempFile
-        Move-Item -Path $patchedTempFile -Destination $targetPath
-        $fileAcl | Set-Acl "$targetPath"
-        Remove-Item "$tempFolderForPatchedFilePath"
-    
-        if ($isReadOnly) {
-            Set-ItemProperty -Path "$targetPath" -Name Attributes -Value ($fileAttributes -bor [System.IO.FileAttributes]::ReadOnly)
-        }
-
-        return $true
-    } else {
-        if ($isReadOnly) {
-            Set-ItemProperty -Path "$targetPath" -Name Attributes -Value ($fileAttributes -bor [System.IO.FileAttributes]::ReadOnly)
-        }
-
-        return $false
-    }
-}
 
 <#
 .SYNOPSIS
@@ -497,37 +456,25 @@ try {
         $patternsExtracted = $patterns
     }
 
-    # The last unnamed argument can be the path to an already patched file stored in a temporary folder.
-    # This is done so as not to patch the file again (if it has already been patched) when restarting the script on behalf of the administrator.
-    # Therefore, if the last argument is the path to the file, then this is already a patched file and we just need to replace the original file with it.
-    if ($lastArgs -and ($lastArgs.Count -gt 0)) {
-        [string]$tempFolderPath = ''
-        [int[]]$replacedPatternsIndexes = @()
-        [string[]]$lastArgsSeparated = $lastArgs[0].Split(',')
+    $isReadOnly, $needRunAS = Test-ReadOnlyAndWriteAccess $filePathFull
 
-        foreach ($arg in $lastArgsSeparated) {
-            $varName = $arg.Split('=')[0]
-            if ($varName.Trim() -eq $varNameTempFolder) {
-                $tempFolderPath = $arg.Split('=')[1]
-            }
-            if ($varName.Trim() -eq $varNameFoundIndexes) {
-                $replacedPatternsIndexes = ($arg.Split('=')[1]).Split(' ') | foreach { [int]$_ }
-            }
-        }
+    if ($needRunAS -and !(DoWeHaveAdministratorPrivileges)) {
+        # relaunch current script in separate process with Admins privileges
+        Start-Process -Verb RunAs $PSHost ("-ExecutionPolicy Bypass -File `"$PSCommandPath`" $PSBoundParametersStringGlobal")
+        break
+    }
 
-        [bool]$isTempPatchedFileReplaced = Replace-TempPatchedFileIfExist "$filePathFull" "$tempFolderPath"
-
-        if (!$isTempPatchedFileReplaced) {
-            Write-Error "Temp patched file not found but should be"
-            exit 1
-        }
-    } else {
-        if ((Test-Path variable:filePathFull) -and ($filePathFull.Length -gt 0) -and (Test-Path variable:patternsExtracted) -and ($filePathFull.Length -gt 0)) {
-            $replacedPatternsIndexes = SearchAndReplace-HexPatternInBinaryFile -targetPath $filePathFull -patterns $patternsExtracted
-        } else {
-            throw "Not given path for file for patch or patterns"
+    if (Test-Path "$filePathFull.bak") {
+        $isReadOnly, $needRunAS = Test-ReadOnlyAndWriteAccess "$filePathFull.bak"
+    
+        if ($needRunAS -and !(DoWeHaveAdministratorPrivileges)) {
+            # relaunch current script in separate process with Admins privileges
+            Start-Process -Verb RunAs $PSHost ("-ExecutionPolicy Bypass -File `"$PSCommandPath`" $PSBoundParametersStringGlobal")
+            break
         }
     }
+
+    $replacedPatternsIndexes = SearchAndReplace-HexPatternInBinaryFile -targetPath $filePathFull -patterns $patternsExtracted
 
     HandleReplacedPatternsIndexes $patternsExtracted $replacedPatternsIndexes
 } catch {
