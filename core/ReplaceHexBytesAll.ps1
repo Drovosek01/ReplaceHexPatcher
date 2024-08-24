@@ -210,35 +210,47 @@ function Separate-Patterns {
 
 
 <#
-.SYNOPSIS
-Function to search and replace hex patterns in a binary file
-
 .DESCRIPTION
-Loop in given patterns array and search each search-pattern and replace
-    all found replace-patterns in given file and re-write file after replace
-    patterns if any patterns was found and return indexes found patterns
+Check attribute and permission for target file and handle search + replace patterns
 #>
-function SearchAndReplace-HexPatternInBinaryFile {
+function Apply-HexPatternInBinaryFile {
     [OutputType([int[]])]
     param (
         [Parameter(Mandatory)]
         [string]$targetPath,
+        [Parameter(Mandatory)]
         [string[]]$patternsArray
     )
 
-    # we check outside this function if need relaunch with Admins rights
-    # here we need know only about attribute "Read only" for file
-    $isReadOnly, $needRunAS = Test-ReadOnlyAndWriteAccess $filePathFull
+    [string]$backupAbsoluteName = "$targetPath.bak"
+    [System.Collections.Generic.List[int]]$foundPatternsIndexes = New-Object System.Collections.Generic.List[int]
+
+    if (Test-Path $backupAbsoluteName) {
+        $isReadOnly, $needRunAS = Test-ReadOnlyAndWriteAccess $backupAbsoluteName
+    
+        if ($needRunAS -and !(DoWeHaveAdministratorPrivileges)) {
+            # relaunch current script in separate process with Admins privileges
+            Start-Process -Verb RunAs $PSHost ("-ExecutionPolicy Bypass -File `"$PSCommandPath`" $PSBoundParametersStringGlobal")
+            break
+        }
+    }
+
+    $isReadOnly, $needRunAS = Test-ReadOnlyAndWriteAccess $targetPath
+
+    if ($needRunAS -and !(DoWeHaveAdministratorPrivileges)) {
+        # relaunch current script in separate process with Admins privileges
+        Start-Process -Verb RunAs $PSHost ("-ExecutionPolicy Bypass -File `"$PSCommandPath`" $PSBoundParametersStringGlobal")
+        break
+    }
 
     $fileAcl = Get-Acl "$targetPath"
     $fileAttributes = Get-Item -Path "$targetPath" | Select-Object -ExpandProperty Attributes
-    [string]$backupAbsoluteName = "$targetPath.bak"
+
+    KillExeTasks $targetPath
 
     if ($isReadOnly) {
         Set-ItemProperty -Path "$targetPath" -Name Attributes -Value ($fileAttributes -bxor [System.IO.FileAttributes]::ReadOnly)
     }
-
-    KillExeTasks $targetPath
 
     if ($makeBackup) {
         if (Test-Path $backupAbsoluteName) {
@@ -258,9 +270,51 @@ function SearchAndReplace-HexPatternInBinaryFile {
         # restore file permissions
         $fileAcl | Set-Acl "$backupAbsoluteName"
     }
-    
 
 
+    $foundPatternsIndexes = SearchAndReplace-HexPatternInBinaryFile -targetPath $targetPath -patternsArray $patternsArray
+
+
+    # restore file permissions
+    $fileAcl | Set-Acl "$targetPath"
+
+    # restore attribute "Read Only" if it was
+    if ($isReadOnly) {
+        Set-ItemProperty -Path "$targetPath" -Name Attributes -Value ($fileAttributes -bor [System.IO.FileAttributes]::ReadOnly)
+    }
+
+    if ((($foundPatternsIndexes -is [array]) -and ($foundPatternsIndexes.Count -eq 0)) -or ($foundPatternsIndexes -is [int])) {
+        # It need for prevent error when pass empty array to function
+        [void]($foundPatternsIndexes.Add(-1))
+
+        # If no patterns found - backuped file was just duplicate original file
+        # no need backup file because original file was not modified
+        if ($makeBackup) {
+            Remove-Item -Path $backupAbsoluteName -Force
+        }
+    }
+
+    return [int[]]$foundPatternsIndexes.ToArray()
+}
+
+
+<#
+.SYNOPSIS
+Function to search and replace hex patterns in a binary file
+
+.DESCRIPTION
+Loop in given patterns array and search each search-pattern and replace
+    all found replace-patterns in given file
+    and return indexes found patterns from given patterns array 
+#>
+function SearchAndReplace-HexPatternInBinaryFile {
+    [OutputType([int[]])]
+    param (
+        [Parameter(Mandatory)]
+        [string]$targetPath,
+        [Parameter(Mandatory)]
+        [string[]]$patternsArray
+    )
 
     [System.Collections.Generic.List[byte[]]]$searchBytes, [System.Collections.Generic.List[byte[]]]$replaceBytes = Separate-Patterns $patternsArray
 
@@ -274,10 +328,6 @@ function SearchAndReplace-HexPatternInBinaryFile {
         break
     }
     [System.Collections.Generic.List[int]]$foundPatternsIndexes = New-Object System.Collections.Generic.List[int]
-
-    # TODO:
-    # Re-write for check if need admins rights after first match hex pattern,
-    #    not after all patterns will found
 
     [int]$bufferSize = [System.UInt16]::MaxValue
     $stream.Position = 0
@@ -325,36 +375,13 @@ function SearchAndReplace-HexPatternInBinaryFile {
             }
             [void]($stream.Seek($position, [System.IO.SeekOrigin]::Begin))
         }
-    }
-
-
-
-
-    # restore file permissions
-    $fileAcl | Set-Acl "$targetPath"
-
-    # restore attribute "Read Only" if it was
-    if ($isReadOnly) {
-        Set-ItemProperty -Path "$targetPath" -Name Attributes -Value ($fileAttributes -bor [System.IO.FileAttributes]::ReadOnly)
-    }
-
-
-
-
-
-    
+    }    
 
     $stream.Close()
 
     if ($foundPatternsIndexes.Count -eq 0) {
         # It need for prevent error when pass empty array to function
         [void]($foundPatternsIndexes.Add(-1))
-
-        # If no patterns found - backuped file was just duplicate original file
-        # no need backup file because original file was not modified
-        if ($makeBackup) {
-            Remove-Item -Path $backupAbsoluteName -Force
-        }
     }
 
     return [int[]]$foundPatternsIndexes.ToArray()
@@ -456,25 +483,7 @@ try {
         $patternsExtracted = $patterns
     }
 
-    $isReadOnly, $needRunAS = Test-ReadOnlyAndWriteAccess $filePathFull
-
-    if ($needRunAS -and !(DoWeHaveAdministratorPrivileges)) {
-        # relaunch current script in separate process with Admins privileges
-        Start-Process -Verb RunAs $PSHost ("-ExecutionPolicy Bypass -File `"$PSCommandPath`" $PSBoundParametersStringGlobal")
-        break
-    }
-
-    if (Test-Path "$filePathFull.bak") {
-        $isReadOnly, $needRunAS = Test-ReadOnlyAndWriteAccess "$filePathFull.bak"
-    
-        if ($needRunAS -and !(DoWeHaveAdministratorPrivileges)) {
-            # relaunch current script in separate process with Admins privileges
-            Start-Process -Verb RunAs $PSHost ("-ExecutionPolicy Bypass -File `"$PSCommandPath`" $PSBoundParametersStringGlobal")
-            break
-        }
-    }
-
-    $replacedPatternsIndexes = SearchAndReplace-HexPatternInBinaryFile -targetPath $filePathFull -patterns $patternsExtracted
+    $replacedPatternsIndexes = Apply-HexPatternInBinaryFile -targetPath $filePathFull -patterns $patternsExtracted
 
     HandleReplacedPatternsIndexes $patternsExtracted $replacedPatternsIndexes
 } catch {
