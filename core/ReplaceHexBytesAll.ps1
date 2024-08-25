@@ -236,6 +236,14 @@ function Separate-Patterns {
         if (-not ($temp.Count -eq 2)) {
             throw "Wrong pattern $pattern and $temp"
         }
+        
+        if ($temp[0].Replace('??', '').Trim().Length -eq 0) {
+            throw "Looks like search pattern $pattern[0] contain only wildcards. Specify the bytes that need to be searched for."
+        }
+        
+        if ($temp[1].Replace('??', '').Trim().Length -eq 0) {
+            throw "Looks like replace pattern $pattern[1] contain only wildcards. Specify the bytes that need to be searched for."
+        }
 
         [int[]]$wildcards, [byte[]]$searchHexPattern = (Convert-HexStringToByteArrayWithWildcards -hexString $temp[0])
         [byte[]]$replaceHexPattern = (Convert-HexStringToByteArray -hexString $temp[1])
