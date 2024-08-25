@@ -295,6 +295,8 @@ function Apply-HexPatternInBinaryFile {
 
     $isReadOnly, $needRunAS = Test-ReadOnlyAndWriteAccess $targetPath
 
+    KillExeTasks $targetPath
+
     if ($needRunAS -and !(DoWeHaveAdministratorPrivileges)) {
         # relaunch current script in separate process with Admins privileges
         Start-Process -Verb RunAs $PSHost ("-ExecutionPolicy Bypass -File `"$PSCommandPath`" $PSBoundParametersStringGlobal")
@@ -304,7 +306,6 @@ function Apply-HexPatternInBinaryFile {
     $fileAcl = Get-Acl "$targetPath"
     $fileAttributes = Get-Item -Path "$targetPath" -Force | Select-Object -ExpandProperty Attributes
 
-    KillExeTasks $targetPath
 
     if ($isReadOnly) {
         Set-ItemProperty -Path "$targetPath" -Name Attributes -Value ($fileAttributes -bxor [System.IO.FileAttributes]::ReadOnly)
@@ -387,6 +388,33 @@ Remove-Item -Path '$backupAbsoluteName' -Force
 
 <#
 .SYNOPSIS
+Return index first bytes not matched with index wildcard
+#>
+function Get-IndexFirstTrueByte {
+    [OutputType([int])]
+    param (
+        [Parameter(Mandatory)]
+        [System.Collections.Generic.List[byte]]$hexBytes,
+        [Parameter(Mandatory)]
+        [System.Collections.Generic.List[int]]$wildcardsIndexes
+    )
+
+    if ($wildcardsIndexes.Count -eq 0) {
+        return 0
+    }
+
+    for ($i = 0; $i -lt $hexBytes.Count; $i++) {
+        if ($wildcardsIndexes.Contains($i)) {
+            continue
+        } else {
+            return $i
+        }
+    }
+}
+
+
+<#
+.SYNOPSIS
 Function to search and replace hex patterns in a binary file
 
 .DESCRIPTION
@@ -426,14 +454,27 @@ function SearchAndReplace-HexPatternInBinaryFile {
         [void]($stream.Seek(0, [System.IO.SeekOrigin]::Begin))
         [int]$searchLength = $searchBytes[$p].Length
 
+        # check if we have wildcards
+        if ($wildcardsIndexes -is [array]) {
+            [int]$indexFirstTrueByte = Get-IndexFirstTrueByte -hexBytes $searchBytes[$p] -wildcardsIndexes $wildcardsIndexes[$p]
+        } else {
+            [int]$indexFirstTrueByte = 0
+        }
+
         while (($bytesRead = $stream.Read($buffer, 0, $buffer.Length)) -gt 0) {
             [int]$index = 0
             
             while ($index -le ($bytesRead - $searchLength)) {
-                if ($wildcardsIndexes[$p].Contains(0)) {
-                    $foundIndex = $index
-                } else {
-                    $foundIndex = [Array]::IndexOf($buffer, $searchBytes[$p][0], $index)
+                [int]$foundIndex = [Array]::IndexOf($buffer, $searchBytes[$p][$indexFirstTrueByte], $index)
+
+                # start position for paste "replace bytes" if "search bytes" will match
+                [int]$fixedFoundIndex = $foundIndex - $indexFirstTrueByte
+
+                # If fixedFoundIndex goes beyond the initial file boundary
+                # so the found index is not suitable for us - increase loop index and go to next loop iteration
+                if (($position - $fixedFoundIndex) -lt 0) {
+                    $index++
+                    continue
                 }
 
                 if ($foundIndex -eq -1) {
@@ -445,22 +486,20 @@ function SearchAndReplace-HexPatternInBinaryFile {
                     if ($wildcardsIndexes[$p].Contains($x)) {
                         continue
                     }
-                    if ($buffer[$foundIndex + $x] -ne $searchBytes[$p][$x]) {
+                    if ($buffer[$fixedFoundIndex + $x] -ne $searchBytes[$p][$x]) {
                         $match = $false
                         break
                     }
                 }
                 
                 if ($match) {
-                    [void]($stream.Seek($position + $foundIndex, [System.IO.SeekOrigin]::Begin))
+                    [void]($stream.Seek($position + $fixedFoundIndex, [System.IO.SeekOrigin]::Begin))
                     $stream.Write($replaceBytes[$p], 0, $replaceBytes[$p].Length)
-
                     $index = $foundIndex + $searchLength
                     [void]($foundPatternsIndexes.Add($p))
                 } else {
                     $index = $foundIndex + 1
                 }
-
             }
 
             $position += $bytesRead - $searchLength + 1
@@ -491,6 +530,9 @@ function KillExeTasks {
         [Parameter(Mandatory)]
         [string]$targetPath
     )
+
+    # TODO:
+    # Also need good way for kill process blocked access to file if file not launched
 
     if (($targetPath.Length -eq 0) -or (-not (Test-Path $targetPath))) {
         return
