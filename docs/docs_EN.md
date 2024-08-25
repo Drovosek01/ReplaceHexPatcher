@@ -49,6 +49,8 @@ By passing the `-makeBackup` parameter, the original file (target) will be copie
 A backup will be made only if at least one pattern is found in the file.
 If the patterns are not found, accordingly, the goal will not be changed in any way and there is no point in a backup.
 
+In general, "under the hood" backup is done initially in a unique temporary file in the same folder before starting byte search. Because when we start reading the file, when we find the right patterns, they will be immediately replaced. There is no way to make a backup only when finding and replacing the first byte pattern, because file access to the file will be blocked during reading. If patterns are found and, accordingly, the target file is changed, then the temporary backup file will be renamed to the "true" backup file (the one with the extension `.bak`) and if such a backup file existed before the modification of the target file, then the existing backup file will be deleted.
+
 To use the script, you must:
 1. Start Powershell
 2. Use `cd <path>` to go to the folder with the file `ReplaceHexBytesAll.ps1`
@@ -346,10 +348,11 @@ It is also worth remembering about the "read-only" attribute, because if the fil
 Juggling these 2 items "administrator rights" and the "read-only" attribute is a rather confusing task and it adds quite a lot of additional logic to the script and reduces the readability of the code.
 
 This is especially a problem when you need to run code from a regular Powershell script that contains multiline text.
-
 It is much easier and more convenient to request administrator rights at the very beginning of the script execution and abort execution in their absence, but it is not a fact that these rights are really necessary to make changes.
 
 True-the way is to request permissions if necessary.
+
+Later, the logic of requesting administrator rights in the patcher script was changed and checking for the need to restart with a request for administrator rights is done from the very beginning, because the file may not have read permissions and in order to banally read the file and search for bytes (without replacing bytes, that is, without changing the file), you may need Administrator rights. This initial check made it possible to reduce the number of "crutches", in principle, the amount of code in the patch.
 
 ### About Powershell
 
