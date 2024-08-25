@@ -1,5 +1,5 @@
 ﻿# Example usage in Windows Powershell:
-# .\ReplaceHexBytesAll.ps1 -filePath "D:\TEMP\file.exe" -patterns "4883EC28BA2F000000488D0DB0B7380A/11111111111111111111111111111111","C4252A0A48894518488D5518488D4D68/11111111111111111111111111111111","45A8488D55A8488D4D68E8618C1E05BA/1111111111111111111111111111111"
+# .\ReplaceHexBytesAll.ps1 -filePath "D:\TEMP\file.exe" -patterns "4883EC28BA2F????00??8D0DB0B7380A/11111111111111111111111111111111","C4 25 2A 0A 48 89 45 18 48 8D 55 18 48 8D 4D ?? /     1111 111111    111111 1111111111111111","\x45\xA8\x48\x8D\x55\xA8\x48\x8D\x4D\x68\xE8\x61\x8C\x1E\x05\xBA/\x11\x11\x11\x11\x11\x11\x11\x11\x11\x11\x11\x11\x11\x11\x11\x11" -makeBackup
 
 # Main script
 param (
@@ -116,7 +116,7 @@ function DoWeHaveAdministratorPrivileges {
 
 <#
 .SYNOPSIS
-Function to convert hex string given byte array
+Function for convert given hex string to bytes array
 #>
 function Convert-HexStringToByteArray {
     [OutputType([byte[]])]
@@ -140,6 +140,48 @@ function Convert-HexStringToByteArray {
     }
 
     return [byte[]]$byteArray.ToArray()
+}
+
+
+<#
+.DESCRIPTION
+Function get string that contain hex symbols and wildcards (??) symbols
+and return 2 arrays:
+Second array is "true" array of bytes (wildcards symbols replaced with '0')
+First array is indexes where wildcards will placed in array bytes
+#>
+function Convert-HexStringToByteArrayWithWildcards {
+    [OutputType([array])]
+    param (
+        [string]$hexString
+    )
+
+    if (-not $hexString.Contains('?')) {
+        [byte[]]$byteArray = Convert-HexStringToByteArray $hexString
+
+        return @(), $byteArray
+    }
+
+    [System.Collections.Generic.List[int]]$wildcardsIndexes = New-Object System.Collections.Generic.List[int]
+
+    [string]$tempHexString = $hexString.Clone()
+    [int]$wildcardPosition = $tempHexString.IndexOf('??')
+
+    while ($wildcardPosition -ne -1) {
+        if (($wildcardPosition % 2) -eq 0) {
+            $wildcardsIndexes.Add($wildcardPosition / 2)
+            # replace wildcards symbols to any hex symbol for skip search found index
+            $tempHexString = $tempHexString.Remove($wildcardPosition, 2).Insert($wildcardPosition, '00')
+            $wildcardPosition = $tempHexString.IndexOf('??')
+        } else {
+            Write-Error "Looks like $hexString is wrong hex pattern because wildcard (??) is not in an even position"
+            exit 1
+        }
+    }
+
+    [byte[]]$byteArray = Convert-HexStringToByteArray $tempHexString
+
+    return $wildcardsIndexes.ToArray(), $byteArray
 }
 
 
@@ -176,13 +218,14 @@ Then all this is divided into 2 arrays - an array with search patterns
     and an array with replacement patterns and return both arrays
 #>
 function Separate-Patterns {
-    [OutputType([System.Collections.Generic.List[byte[]]])]
+    [OutputType([array])]
     param (
         [Parameter(Mandatory)]
         [string[]]$patternsArray
     )
     
     [System.Collections.Generic.List[byte[]]]$searchBytes = New-Object System.Collections.Generic.List[byte[]]
+    [System.Collections.Generic.List[int[]]]$wildcardsIndexes = New-Object System.Collections.Generic.List[int[]]
     [System.Collections.Generic.List[byte[]]]$replaceBytes = New-Object System.Collections.Generic.List[byte[]]
 
     # Separate pattern-string on search and replace strings
@@ -194,14 +237,15 @@ function Separate-Patterns {
             throw "Wrong pattern $pattern and $temp"
         }
 
-        [byte[]]$searchHexPattern = (Convert-HexStringToByteArray -hexString $temp[0])
+        [int[]]$wildcards, [byte[]]$searchHexPattern = (Convert-HexStringToByteArrayWithWildcards -hexString $temp[0])
         [byte[]]$replaceHexPattern = (Convert-HexStringToByteArray -hexString $temp[1])
 
         [void]($searchBytes.Add($searchHexPattern))
+        [void]($wildcardsIndexes.Add($wildcards))
         [void]($replaceBytes.Add($replaceHexPattern))
     }
 
-    return $searchBytes, $replaceBytes
+    return $searchBytes, $wildcardsIndexes, $replaceBytes
 }
 
 
@@ -248,16 +292,6 @@ function Apply-HexPatternInBinaryFile {
     [string]$backupAbsoluteName = "$targetPath.bak"
     [string]$backupTempAbsoluteName = Get-UniqTempFileName -targetPath $targetPath
     [System.Collections.Generic.List[int]]$foundPatternsIndexes = New-Object System.Collections.Generic.List[int]
-
-    # if (Test-Path $backupAbsoluteName) {
-    #     $isReadOnly, $needRunAS = Test-ReadOnlyAndWriteAccess $backupAbsoluteName
-    
-    #     if ($needRunAS -and !(DoWeHaveAdministratorPrivileges)) {
-    #         # relaunch current script in separate process with Admins privileges
-    #         Start-Process -Verb RunAs $PSHost ("-ExecutionPolicy Bypass -File `"$PSCommandPath`" $PSBoundParametersStringGlobal")
-    #         break
-    #     }
-    # }
 
     $isReadOnly, $needRunAS = Test-ReadOnlyAndWriteAccess $targetPath
 
@@ -369,7 +403,7 @@ function SearchAndReplace-HexPatternInBinaryFile {
         [string[]]$patternsArray
     )
 
-    [System.Collections.Generic.List[byte[]]]$searchBytes, [System.Collections.Generic.List[byte[]]]$replaceBytes = Separate-Patterns $patternsArray
+    [System.Collections.Generic.List[byte[]]]$searchBytes, [System.Collections.Generic.List[int[]]]$wildcardsIndexes, [System.Collections.Generic.List[byte[]]]$replaceBytes = Separate-Patterns $patternsArray
 
     try {
         $stream = [System.IO.File]::Open($targetPath, [System.IO.FileMode]::Open, [System.IO.FileAccess]::ReadWrite)
@@ -396,7 +430,11 @@ function SearchAndReplace-HexPatternInBinaryFile {
             [int]$index = 0
             
             while ($index -le ($bytesRead - $searchLength)) {
-                $foundIndex = [Array]::IndexOf($buffer, $searchBytes[$p][0], $index)
+                if ($wildcardsIndexes[$p].Contains(0)) {
+                    $foundIndex = $index
+                } else {
+                    $foundIndex = [Array]::IndexOf($buffer, $searchBytes[$p][0], $index)
+                }
 
                 if ($foundIndex -eq -1) {
                     break
@@ -404,6 +442,9 @@ function SearchAndReplace-HexPatternInBinaryFile {
         
                 $match = $true
                 for ($x = 1; $x -lt $searchLength; $x++) {
+                    if ($wildcardsIndexes[$p].Contains($x)) {
+                        continue
+                    }
                     if ($buffer[$foundIndex + $x] -ne $searchBytes[$p][$x]) {
                         $match = $false
                         break
