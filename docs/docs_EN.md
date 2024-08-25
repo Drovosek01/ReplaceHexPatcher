@@ -299,6 +299,12 @@ At the same time, if there is a `-needRunAS` parameter and the current parser sc
 
 The text from this section is also analyzed and variables are replaced with their values from the variables section.
 
+
+## Testing
+
+About this in the [additional file](./testing_EN.md )
+
+
 ## Utilities
 
 The folder [utilities](../utilities/) contains script files created based on functions from the main utility scripts.
