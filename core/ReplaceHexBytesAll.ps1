@@ -207,6 +207,31 @@ function Separate-Patterns {
 
 <#
 .DESCRIPTION
+Getting the path to the file
+and return absolute path for temp file in same folder
+#>
+function Get-UniqTempFileName {
+    [OutputType([string])]
+    param (
+        [Parameter(Mandatory)]
+        [string]$targetPath
+    )
+    
+    [string]$tempFilePath = "$targetPath.temp"
+    while (-not (Test-Path $tempFilePath)) {
+        if (-not (Test-Path $tempFilePath)) {
+            break
+        }
+
+        $tempFilePath += (Get-Random -Maximum 10)
+    }
+    
+    return $tempFilePath
+}
+
+
+<#
+.DESCRIPTION
 Check attribute and permission for target file and handle search + replace patterns
 #>
 function Apply-HexPatternInBinaryFile {
@@ -221,17 +246,18 @@ function Apply-HexPatternInBinaryFile {
     )
 
     [string]$backupAbsoluteName = "$targetPath.bak"
+    [string]$backupTempAbsoluteName = Get-UniqTempFileName -targetPath $targetPath
     [System.Collections.Generic.List[int]]$foundPatternsIndexes = New-Object System.Collections.Generic.List[int]
 
-    if (Test-Path $backupAbsoluteName) {
-        $isReadOnly, $needRunAS = Test-ReadOnlyAndWriteAccess $backupAbsoluteName
+    # if (Test-Path $backupAbsoluteName) {
+    #     $isReadOnly, $needRunAS = Test-ReadOnlyAndWriteAccess $backupAbsoluteName
     
-        if ($needRunAS -and !(DoWeHaveAdministratorPrivileges)) {
-            # relaunch current script in separate process with Admins privileges
-            Start-Process -Verb RunAs $PSHost ("-ExecutionPolicy Bypass -File `"$PSCommandPath`" $PSBoundParametersStringGlobal")
-            break
-        }
-    }
+    #     if ($needRunAS -and !(DoWeHaveAdministratorPrivileges)) {
+    #         # relaunch current script in separate process with Admins privileges
+    #         Start-Process -Verb RunAs $PSHost ("-ExecutionPolicy Bypass -File `"$PSCommandPath`" $PSBoundParametersStringGlobal")
+    #         break
+    #     }
+    # }
 
     $isReadOnly, $needRunAS = Test-ReadOnlyAndWriteAccess $targetPath
 
@@ -251,22 +277,8 @@ function Apply-HexPatternInBinaryFile {
     }
 
     if ($needMakeBackup) {
-        if (Test-Path $backupAbsoluteName) {
-            $fileAttributesForBackup = Get-Item -Path "$backupAbsoluteName" -Force | Select-Object -ExpandProperty Attributes
-
-            Set-ItemProperty -Path "$backupAbsoluteName" -Name Attributes -Value ($fileAttributesForBackup -bxor [System.IO.FileAttributes]::ReadOnly)
-        }
-
-        # with copying it wil be replaced
-        Copy-Item -Path "$targetPath" -Destination "$backupAbsoluteName"
-
-        # restore attribute "Read Only" if it was
-        if ($isReadOnly) {
-            Set-ItemProperty -Path "$backupAbsoluteName" -Name Attributes -Value ($fileAttributes -bor [System.IO.FileAttributes]::ReadOnly)
-        }
-
-        # restore file permissions
-        $fileAcl | Set-Acl "$backupAbsoluteName"
+        # Make temp backup file
+        Copy-Item -Path "$targetPath" -Destination "$backupTempAbsoluteName" -Force
     }
 
 
@@ -288,7 +300,50 @@ function Apply-HexPatternInBinaryFile {
         # If no patterns found - backuped file was just duplicate original file
         # no need backup file because original file was not modified
         if ($needMakeBackup) {
-            Remove-Item -Path $backupAbsoluteName -Force
+            Remove-Item -Path $backupTempAbsoluteName -Force
+        }
+    } else {
+        # if target file patched we need rename temp backuped file to "true" backuped file
+        # and restore attributes and permissions
+
+        if ($needMakeBackup) {
+            if (Test-Path $backupAbsoluteName) {
+                try {
+                    $fileAttributesForBackup = Get-Item -Path "$backupAbsoluteName" -Force | Select-Object -ExpandProperty Attributes
+                    
+                    # remove "Read Only" attribute from exist backuped file
+                    Set-ItemProperty -Path "$backupAbsoluteName" -Name Attributes -Value ($fileAttributesForBackup -bxor [System.IO.FileAttributes]::ReadOnly)
+                    Remove-Item -Path "$backupAbsoluteName" -Force
+                }
+                catch {
+                    # IMPORTANT !!!
+                    # Do not formate this command and not re-write it
+                    # it need for add multiline string to Start-Process command
+                    $command = @"
+$fileAttributesForBackup = Get-Item -Path '$backupAbsoluteName' -Force | Select-Object -ExpandProperty Attributes
+Set-ItemProperty -Path '$backupAbsoluteName' -Name Attributes -Value ('$fileAttributesForBackup' -bxor [System.IO.FileAttributes]::ReadOnly)
+Remove-Item -Path '$backupAbsoluteName' -Force
+"@
+
+                    # Start-Process $PSHost -Verb RunAs -ArgumentList "-ExecutionPolicy Bypass -NoProfile -WindowStyle Hidden -Command `"$command`""
+                    $processId = Start-Process $PSHost -Verb RunAs -PassThru -Wait -ArgumentList "-ExecutionPolicy Bypass -WindowStyle Hidden -NoProfile -Command `"$command`""
+
+                    if ($processId.ExitCode -gt 0) {
+                        throw "Something happened wrong when try remove previously backuped file"
+                    }
+                }
+            }
+
+            # with copying it wil be replaced
+            Rename-Item -Path "$backupTempAbsoluteName" -NewName "$backupAbsoluteName" -Force
+
+            # restore attribute "Read Only" if it was on original file
+            if ($isReadOnly) {
+                Set-ItemProperty -Path "$backupAbsoluteName" -Name Attributes -Value ($fileAttributes -bor [System.IO.FileAttributes]::ReadOnly)
+            }
+
+            # restore file permissions
+            $fileAcl | Set-Acl "$backupAbsoluteName"
         }
     }
 
