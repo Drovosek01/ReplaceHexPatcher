@@ -463,7 +463,7 @@ function SearchAndReplace-HexPatternInBinaryFile {
         [int]$searchLength = $searchBytes[$p].Length
 
         # check if we have wildcards
-        if ($wildcardsIndexes -is [array]) {
+        if ($wildcardsIndexes.GetType().FullName.Contains('System.Collections.Generic.List') -and ($wildcardsIndexes.Count -gt 0)) {
             [int]$indexFirstTrueByte = Get-IndexFirstTrueByte -hexBytes $searchBytes[$p] -wildcardsIndexes $wildcardsIndexes[$p]
         } else {
             [int]$indexFirstTrueByte = 0
@@ -475,18 +475,18 @@ function SearchAndReplace-HexPatternInBinaryFile {
             while ($index -le ($bytesRead - $searchLength)) {
                 [int]$foundIndex = [Array]::IndexOf($buffer, $searchBytes[$p][$indexFirstTrueByte], $index)
 
-                # start position for paste "replace bytes" if "search bytes" will match
-                [int]$fixedFoundIndex = $foundIndex - $indexFirstTrueByte
-
-                # If fixedFoundIndex goes beyond the initial file boundary
-                # so the found index is not suitable for us - increase loop index and go to next loop iteration
-                if (($position - $fixedFoundIndex) -lt 0) {
-                    $index++
-                    continue
-                }
-
                 if ($foundIndex -eq -1) {
                     break
+                }
+                
+                # start position for paste "replace bytes" if "search bytes" will match
+                [int]$fixedFoundIndex = $foundIndex - $indexFirstTrueByte
+                
+                # If fixedFoundIndex goes beyond the initial file boundary
+                # so the found index is not suitable for us - increase loop index and go to next loop iteration
+                if (($position -eq 0) -and ($fixedFoundIndex -lt 0)) {
+                    $index++
+                    continue
                 }
         
                 $match = $true
