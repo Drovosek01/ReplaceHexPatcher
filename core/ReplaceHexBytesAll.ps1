@@ -1,4 +1,4 @@
-﻿# Example usage in Windows Powershell:
+# Example usage in Windows Powershell:
 # .\ReplaceHexBytesAll.ps1 -filePath "D:\TEMP\file.exe" -patterns "4883EC28BA2F????00??8D0DB0B7380A/11111111111111111111111111111111","C4 25 2A 0A 48 89 45 18 48 8D 55 18 48 8D 4D ?? /     1111 111111    111111 1111111111111111","\x45\xA8\x48\x8D\x55\xA8\x48\x8D\x4D\x68\xE8\x61\x8C\x1E\x05\xBA/\x11\x11\x11\x11\x11\x11\x11\x11\x11\x11\x11\x11\x11\x11\x11\x11" -makeBackup
 
 # Main script
@@ -484,7 +484,7 @@ function SearchAndReplace-HexPatternInBinaryFile {
                 
                 # If fixedFoundIndex goes beyond the initial file boundary
                 # so the found index is not suitable for us - increase loop index and go to next loop iteration
-                if (($position -eq 0) -and ($fixedFoundIndex -lt 0)) {
+                if (($position -eq 0) -and (($index - [math]::Abs($fixedFoundIndex)) -lt 0)) {
                     $index++
                     continue
                 }
