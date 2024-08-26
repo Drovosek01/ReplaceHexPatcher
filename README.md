@@ -31,7 +31,8 @@ In this case, the alternative option is not a native method.:
 ## Functions
 
 Main:
-- Search and replace all found byte sequences
+- Search and replace all found hex-byte sequences
+- The possibility of using wildcard characters "??" in patterns
 - Creating backups of files if hex patterns are found
 - Several possible formats of transmitted hex values
 - Requests administrator rights only if necessary
@@ -63,6 +64,7 @@ For more information, see [documentation](./docs/docs_EN.md)
 ```
 - `hex pattern` has no strict format.
   - There can be any number of spaces and `\x` characters between the values in the pattern - all of them will be deleted (their presence will not cause errors)
+  - Wildcard characters `??` can be used in search and replace patterns
 - the separator between the search and replace patterns can be one of the characters `/`,`\`,`|`
 - in the `-patterns` parameter, you can pass both an array of patterns in the form of comma-separated strings, and 1 line in which the sets of patterns are separated by a comma
 - you can pass the `-makeBackup` parameter and then the original file will be saved with the added extension `.bak`

@@ -1,7 +1,8 @@
 param (
     [Parameter(Mandatory)]
     [string]$filePath,
-    # One pattern is string with search/replace hex like "AABB/1122" or "\xAA\xBB/\x11\x22" or "A A BB CC|1 12 233"
+    # One pattern is string with search/replace hex
+    # like "AABB/1122" or "\xAA\xBB/\x11\x22" or "A A BB CC|1 12 233" or "?? AA BB CC??FF/112233445566" or "AABB??CC????11/??C3??????????"
     [Parameter(Mandatory)]
     [string[]]$patterns
 )

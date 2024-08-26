@@ -36,8 +36,14 @@ The path to the file is passed as an argument to run the script `-filePath "D:\p
 
 Templates for searching + replacing bytes in hex format. Patterns for searching and patterns for replacing bytes are written in 1 line and separated by one of the characters `/` or `\` or `|`.
 
-It is only important that the patterns contain hex characters (that is, they consist of the digits `0-9` and the letters `a-f` inclusive and case-insensitive).
-The patterns themselves do not have a strict format. There can be any number of spaces and `\x` characters between the values in the pattern - all of them will be deleted (their presence will not cause errors). That is, all these formats are valid - `AAVVSS/112233`, `AA BB CC/1 122 3 3 `, `\xAA\xBB \xCC/1122\x33`
+It is only important that the patterns contain hex characters (that is, they consist of the digits `0-9` and the letters `a-f` inclusive and case-insensitive). And wildcard characters `??` (the number of question marks must be a multiple of 2).
+The patterns themselves do not have a strict format. There can be any number of spaces and `\x` characters between the values in the pattern - all of them will be deleted (their presence will not cause errors). That is, all these formats are valid - `AABBCC/112233`, `AA BB CC/1 122 3 3 `, `\xAA\xBB \xCC/1122\x33`,`??1FBA0E??????CD21B8014CCD21????/????????????????74C3????????????`
+
+Wildcards `??` can be used in hex patterns and search and replace, but patterns cannot consist only of these characters (this is meaningless).
+
+The wildcard `??` in the search pattern means that any byte can be in its place. For example, the pattern `00AABBCC??/1122334455` means that the sequences `00AABBCC00`, `00AABBCC11` and all up to `00AABBCCFF` will be considered valid and will be replaced with bytes from the replacement pattern. If it is possible to perform a patch without using wildcard characters `??`, then it is better not to use them, because they increase the number of search options, which reduces performance and, accordingly, increases the search time. It probably makes sense to use wildcards at the beginning of the search pattern only if byte substitution needs to be performed at the very beginning of the file with a certain indentation.
+
+The wildcard `??` in the replacement pattern means that the original byte from the file will be used in its place. For example, with the patterns `00AABBCCDDFF/00AAC3CCDDFF` and `00AABBCCDDFF/????C3??????` are identical in this case.
 
 All sets of patterns are passed after specifying the script launch argument `-patterns'.
 They can be passed as a comma-separated array of strings `"AABB/1122", "CCDD/4455"`, or as 1 large string `"AABB/1122,CCDD/4455"`. This variation is made primarily because if you run a script from another Powershell script via the `Start-Process`, then the comma-separated strings are not recognized as an array.
@@ -56,12 +62,12 @@ To use the script, you must:
 2. Use `cd <path>` to go to the folder with the file `ReplaceHexBytesAll.ps1`
 3. In the Powershell window, run:
 ```
-.\ReplaceHexBytesAll.ps1 -filePath "D:\TEMP\file.exe" -patterns "48 83EC2 8BA2F 000000 488A/202 0EB1 1111 11111 111111","C42518488D4D68\90909011111175","45A8488D55A8|75EB88909090","\xAA\x7F\xBB\x08\xE3\x4D|\xBB\x90\xB1\xE8\x99\x4D" -makeBackup
+.\ReplaceHexBytesAll.ps1 -filePath "D:\TEMP\file.exe" -patterns "48 83EC2 8BA2F 000000 488A/202 0EB1 1111 11111 111111","C42518488D4D68\90909011111175","45A8488D55A8|75EB88909090","\xAA\x7F\xBB\x08\xE3\x4D|\xBB\x90\xB1\xE8\x99\x4D","??1FBA0E??????CD21B8014CCD21????/????????????????74C3????????????" -makeBackup
 ```
 
 Here are other examples of valid commands:
 ```
-.\ReplaceHexBytesAll.ps1 -filePath "D:\TEMP\test\test.exe" -patterns "AABBCC/112233","44aa55\66bb77","1234|5678","E8A62600000FB6D8488D4C2440FF1578/EB032600000FB6D8488D4C2440FF1578"
+.\ReplaceHexBytesAll.ps1 -filePath "D:\TEMP\test\test.exe" -patterns "AABBCC/112233","44aa55\66bb77","1234|5678","????2600000FB6D8488D4C2440FF1578/EB032600000FB6D8488D4C2440FF1578"
 ```
 
 ```
