@@ -449,7 +449,7 @@ function SearchAndReplace-HexPatternInBinaryFile {
     [System.Collections.Generic.List[byte[]]]$searchBytes,
     [System.Collections.Generic.List[int[]]]$searchWildcardsIndexes,
     [System.Collections.Generic.List[byte[]]]$replaceBytes,
-    [System.Collections.Generic.List[int[]]]$replaceWildcardsIndexes= Separate-Patterns $patternsArray
+    [System.Collections.Generic.List[int[]]]$replaceWildcardsIndexes = Separate-Patterns $patternsArray
 
     try {
         $stream = [System.IO.File]::Open($targetPath, [System.IO.FileMode]::Open, [System.IO.FileAccess]::ReadWrite)
