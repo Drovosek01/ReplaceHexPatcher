@@ -1,4 +1,4 @@
-# Example usage in Windows Powershell:
+﻿# Example usage in Windows Powershell:
 # .\ReplaceHexBytesAll.ps1 -filePath "D:\TEMP\file.exe" -patterns "4883EC28BA2F????00??8D0DB0B7380A/11111111111111111111111111111111","C4 25 2A 0A 48 89 45 18 48 8D 55 18 48 8D 4D ?? /     1111 111111    111111 1111111111111111","\x45\xA8\x48\x8D\x55\xA8\x48\x8D\x4D\x68\xE8\x61\x8C\x1E\x05\xBA/\x11\x11\x11\x11\x11\x11\x11\x11\x11\x11\x11\x11\x11\x11\x11\x11" -makeBackup
 
 # Main script
@@ -225,8 +225,9 @@ function Separate-Patterns {
     )
     
     [System.Collections.Generic.List[byte[]]]$searchBytes = New-Object System.Collections.Generic.List[byte[]]
-    [System.Collections.Generic.List[int[]]]$wildcardsIndexes = New-Object System.Collections.Generic.List[int[]]
+    [System.Collections.Generic.List[int[]]]$searchWildcardsIndexes = New-Object System.Collections.Generic.List[int[]]
     [System.Collections.Generic.List[byte[]]]$replaceBytes = New-Object System.Collections.Generic.List[byte[]]
+    [System.Collections.Generic.List[int[]]]$replaceWildcardsIndexes = New-Object System.Collections.Generic.List[int[]]
 
     # Separate pattern-string on search and replace strings
     foreach ($pattern in $patternsArray) {
@@ -245,15 +246,21 @@ function Separate-Patterns {
             throw "Looks like replace pattern $pattern[1] contain only wildcards. Specify the bytes that need to be searched for."
         }
 
-        [int[]]$wildcards, [byte[]]$searchHexPattern = (Convert-HexStringToByteArrayWithWildcards -hexString $temp[0])
-        [byte[]]$replaceHexPattern = (Convert-HexStringToByteArray -hexString $temp[1])
+        [int[]]$searchWildcards, [byte[]]$searchHexPattern = (Convert-HexStringToByteArrayWithWildcards -hexString $temp[0])
+        [int[]]$replaceWildcards, [byte[]]$replaceHexPattern = (Convert-HexStringToByteArrayWithWildcards -hexString $temp[1])
 
         [void]($searchBytes.Add($searchHexPattern))
-        [void]($wildcardsIndexes.Add($wildcards))
+        if ($searchWildcards.Count -gt 0) {
+            [void]($searchWildcardsIndexes.Add($searchWildcards))
+        }
+
         [void]($replaceBytes.Add($replaceHexPattern))
+        if ($replaceWildcards.Count -gt 0) {
+            [void]($replaceWildcardsIndexes.Add($replaceWildcards))
+        }
     }
 
-    return $searchBytes, $wildcardsIndexes, $replaceBytes
+    return $searchBytes, $searchWildcardsIndexes, $replaceBytes, $replaceWildcardsIndexes
 }
 
 
@@ -439,7 +446,7 @@ function SearchAndReplace-HexPatternInBinaryFile {
         [string[]]$patternsArray
     )
 
-    [System.Collections.Generic.List[byte[]]]$searchBytes, [System.Collections.Generic.List[int[]]]$wildcardsIndexes, [System.Collections.Generic.List[byte[]]]$replaceBytes = Separate-Patterns $patternsArray
+    [System.Collections.Generic.List[byte[]]]$searchBytes, [System.Collections.Generic.List[int[]]]$searchWildcardsIndexes, [System.Collections.Generic.List[byte[]]]$replaceBytes, [System.Collections.Generic.List[int[]]]$replaceWildcardsIndexes = Separate-Patterns $patternsArray
 
     try {
         $stream = [System.IO.File]::Open($targetPath, [System.IO.FileMode]::Open, [System.IO.FileAccess]::ReadWrite)
@@ -463,8 +470,8 @@ function SearchAndReplace-HexPatternInBinaryFile {
         [int]$searchLength = $searchBytes[$p].Length
 
         # check if we have wildcards
-        if ($wildcardsIndexes.GetType().FullName.Contains('System.Collections.Generic.List') -and ($wildcardsIndexes.Count -gt 0)) {
-            [int]$indexFirstTrueByte = Get-IndexFirstTrueByte -hexBytes $searchBytes[$p] -wildcardsIndexes $wildcardsIndexes[$p]
+        if ($searchWildcardsIndexes.GetType().FullName.Contains('System.Collections.Generic.List') -and ($searchWildcardsIndexes.Count -gt 0)) {
+            [int]$indexFirstTrueByte = Get-IndexFirstTrueByte -hexBytes $searchBytes[$p] -wildcardsIndexes $searchWildcardsIndexes[$p]
         } else {
             [int]$indexFirstTrueByte = 0
         }
@@ -474,7 +481,7 @@ function SearchAndReplace-HexPatternInBinaryFile {
             
             while ($index -le ($bytesRead - $searchLength)) {
                 [int]$foundIndex = [Array]::IndexOf($buffer, $searchBytes[$p][$indexFirstTrueByte], $index)
-
+                
                 if ($foundIndex -eq -1) {
                     break
                 }
@@ -484,14 +491,14 @@ function SearchAndReplace-HexPatternInBinaryFile {
                 
                 # If fixedFoundIndex goes beyond the initial file boundary
                 # so the found index is not suitable for us - increase loop index and go to next loop iteration
-                if (($position -eq 0) -and (($index - [math]::Abs($fixedFoundIndex)) -lt 0)) {
+                if (($position -eq 0) -and (($index - [math]::Abs($indexFirstTrueByte)) -lt 0)) {
                     $index++
                     continue
                 }
-        
+                
                 $match = $true
                 for ($x = 1; $x -lt $searchLength; $x++) {
-                    if ($wildcardsIndexes[$p].Contains($x)) {
+                    if ($searchWildcardsIndexes[$p] -and ($searchWildcardsIndexes[$p].Contains($x))) {
                         continue
                     }
                     if ($buffer[$fixedFoundIndex + $x] -ne $searchBytes[$p][$x]) {
@@ -502,7 +509,16 @@ function SearchAndReplace-HexPatternInBinaryFile {
                 
                 if ($match) {
                     [void]($stream.Seek($position + $fixedFoundIndex, [System.IO.SeekOrigin]::Begin))
-                    $stream.Write($replaceBytes[$p], 0, $replaceBytes[$p].Length)
+                    [System.Collections.Generic.List[byte]]$fixedReplaceBytes = [System.Collections.Generic.List[byte]]::New($replaceBytes[$p])
+
+                    if (($replaceWildcardsIndexes.GetType().FullName.Contains('System.Collections.Generic.List')) -and ($replaceWildcardsIndexes.Count -gt 0)) {
+                        for ($rwi = 0; $rwi -lt $replaceWildcardsIndexes[$p].Count; $rwi++) {
+                            $tempBytesIndex = $fixedFoundIndex + $replaceWildcardsIndexes[$p][$rwi]
+                            $fixedReplaceBytes[$replaceWildcardsIndexes[$p][$rwi]] = $buffer[$tempBytesIndex]
+                        }
+                    }
+
+                    $stream.Write($fixedReplaceBytes.ToArray(), 0, $replaceBytes[$p].Length)
                     $index = $foundIndex + $searchLength
                     [void]($foundPatternsIndexes.Add($p))
                 } else {
