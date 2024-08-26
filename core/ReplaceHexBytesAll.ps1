@@ -446,95 +446,110 @@ function SearchAndReplace-HexPatternInBinaryFile {
         [string[]]$patternsArray
     )
 
-    [System.Collections.Generic.List[byte[]]]$searchBytes, [System.Collections.Generic.List[int[]]]$searchWildcardsIndexes, [System.Collections.Generic.List[byte[]]]$replaceBytes, [System.Collections.Generic.List[int[]]]$replaceWildcardsIndexes = Separate-Patterns $patternsArray
+    [System.Collections.Generic.List[byte[]]]$searchBytes,
+    [System.Collections.Generic.List[int[]]]$searchWildcardsIndexes,
+    [System.Collections.Generic.List[byte[]]]$replaceBytes,
+    [System.Collections.Generic.List[int[]]]$replaceWildcardsIndexes= Separate-Patterns $patternsArray
 
     try {
         $stream = [System.IO.File]::Open($targetPath, [System.IO.FileMode]::Open, [System.IO.FileAccess]::ReadWrite)
     }
     catch {
+        [void]($stream.Close())
+        
         # If error when read file it looks like we have not rights
         # and we need request admin privileges - re-launch script with admin privileges
         Start-Process -Verb RunAs $PSHost ("-ExecutionPolicy Bypass -NoExit -File `"$PSCommandPath`" $PSBoundParametersStringGlobal")
         break
     }
+
     [System.Collections.Generic.List[int]]$foundPatternsIndexes = New-Object System.Collections.Generic.List[int]
 
     [int]$bufferSize = [System.UInt16]::MaxValue
     $stream.Position = 0
     
-    for ($p = 0; $p -lt $patternsArray.Count; $p++) {
-        [int]$position = 0
-        [int]$bytesRead = 0
-        [byte[]]$buffer = New-Object byte[] ($bufferSize + $searchBytes[$p].Length - 1)
-        [void]($stream.Seek(0, [System.IO.SeekOrigin]::Begin))
-        [int]$searchLength = $searchBytes[$p].Length
-
-        # check if we have wildcards
-        if ($searchWildcardsIndexes.GetType().FullName.Contains('System.Collections.Generic.List') -and ($searchWildcardsIndexes.Count -gt 0)) {
-            [int]$indexFirstTrueByte = Get-IndexFirstTrueByte -hexBytes $searchBytes[$p] -wildcardsIndexes $searchWildcardsIndexes[$p]
-        } else {
-            [int]$indexFirstTrueByte = 0
-        }
-
-        while (($bytesRead = $stream.Read($buffer, 0, $buffer.Length)) -gt 0) {
-            [int]$index = 0
-            
-            while ($index -le ($bytesRead - $searchLength)) {
-                [int]$foundIndex = [Array]::IndexOf($buffer, $searchBytes[$p][$indexFirstTrueByte], $index)
+    try {
+        for ($p = 0; $p -lt $patternsArray.Count; $p++) {
+            [int]$position = 0
+            [int]$bytesRead = 0
+            [byte[]]$buffer = New-Object byte[] ($bufferSize + $searchBytes[$p].Length - 1)
+            [void]($stream.Seek(0, [System.IO.SeekOrigin]::Begin))
+            [int]$searchLength = $searchBytes[$p].Length
+    
+            # check if we have wildcards
+            if ($searchWildcardsIndexes.GetType().FullName.Contains('System.Collections.Generic.List') -and ($searchWildcardsIndexes.Count -gt 0)) {
+                [int]$indexFirstTrueByte = Get-IndexFirstTrueByte -hexBytes $searchBytes[$p] -wildcardsIndexes $searchWildcardsIndexes[$p]
+            } else {
+                [int]$indexFirstTrueByte = 0
+            }
+    
+            while (($bytesRead = $stream.Read($buffer, 0, $buffer.Length)) -gt 0) {
+                [int]$index = 0
                 
-                if ($foundIndex -eq -1) {
-                    break
-                }
-                
-                # start position for paste "replace bytes" if "search bytes" will match
-                [int]$fixedFoundIndex = $foundIndex - $indexFirstTrueByte
-                
-                # If fixedFoundIndex goes beyond the initial file boundary
-                # so the found index is not suitable for us - increase loop index and go to next loop iteration
-                if (($position -eq 0) -and (($index - [math]::Abs($indexFirstTrueByte)) -lt 0)) {
-                    $index++
-                    continue
-                }
-                
-                $match = $true
-                for ($x = 1; $x -lt $searchLength; $x++) {
-                    if ($searchWildcardsIndexes[$p] -and ($searchWildcardsIndexes[$p].Contains($x))) {
-                        continue
-                    }
-                    if ($buffer[$fixedFoundIndex + $x] -ne $searchBytes[$p][$x]) {
-                        $match = $false
+                while ($index -le ($bytesRead - $searchLength)) {
+                    [int]$foundIndex = [Array]::IndexOf($buffer, $searchBytes[$p][$indexFirstTrueByte], $index)
+                    
+                    if ($foundIndex -eq -1) {
                         break
                     }
-                }
-                
-                if ($match) {
-                    [void]($stream.Seek($position + $fixedFoundIndex, [System.IO.SeekOrigin]::Begin))
-                    [System.Collections.Generic.List[byte]]$fixedReplaceBytes = [System.Collections.Generic.List[byte]]::New($replaceBytes[$p])
-
-                    if (($replaceWildcardsIndexes.GetType().FullName.Contains('System.Collections.Generic.List')) -and ($replaceWildcardsIndexes.Count -gt 0)) {
-                        for ($rwi = 0; $rwi -lt $replaceWildcardsIndexes[$p].Count; $rwi++) {
-                            $tempBytesIndex = $fixedFoundIndex + $replaceWildcardsIndexes[$p][$rwi]
-                            $fixedReplaceBytes[$replaceWildcardsIndexes[$p][$rwi]] = $buffer[$tempBytesIndex]
+                    
+                    # start position for paste "replace bytes" if "search bytes" will match
+                    [int]$fixedFoundIndex = $foundIndex - $indexFirstTrueByte
+                    
+                    # If fixedFoundIndex goes beyond the initial file boundary
+                    # so the found index is not suitable for us - increase loop index and go to next loop iteration
+                    if (($position -eq 0) -and (($index - [math]::Abs($indexFirstTrueByte)) -lt 0)) {
+                        $index++
+                        continue
+                    }
+                    
+                    $match = $true
+                    for ($x = 1; $x -lt $searchLength; $x++) {
+                        if ($searchWildcardsIndexes[$p] -and ($searchWildcardsIndexes[$p].Contains($x))) {
+                            continue
+                        }
+                        if ($buffer[$fixedFoundIndex + $x] -ne $searchBytes[$p][$x]) {
+                            $match = $false
+                            break
                         }
                     }
-
-                    $stream.Write($fixedReplaceBytes.ToArray(), 0, $replaceBytes[$p].Length)
-                    $index = $foundIndex + $searchLength
-                    [void]($foundPatternsIndexes.Add($p))
-                } else {
-                    $index = $foundIndex + 1
+                    
+                    if ($match) {
+                        [void]($stream.Seek($position + $fixedFoundIndex, [System.IO.SeekOrigin]::Begin))
+                        [System.Collections.Generic.List[byte]]$fixedReplaceBytes = [System.Collections.Generic.List[byte]]::New($replaceBytes[$p])
+    
+                        if (($replaceWildcardsIndexes.GetType().FullName.Contains('System.Collections.Generic.List')) -and ($replaceWildcardsIndexes.Count -gt 0)) {
+                            for ($rwi = 0; $rwi -lt $replaceWildcardsIndexes[$p].Count; $rwi++) {
+                                $tempBytesIndex = $fixedFoundIndex + $replaceWildcardsIndexes[$p][$rwi]
+                                $fixedReplaceBytes[$replaceWildcardsIndexes[$p][$rwi]] = $buffer[$tempBytesIndex]
+                            }
+                        }
+    
+                        $stream.Write($fixedReplaceBytes.ToArray(), 0, $replaceBytes[$p].Length)
+                        $index = $foundIndex + $searchLength
+                        [void]($foundPatternsIndexes.Add($p))
+                    } else {
+                        $index = $foundIndex + 1
+                    }
                 }
+    
+                $position += $bytesRead - $searchLength + 1
+                if ($position -gt ($stream.Length - $searchLength)) {
+                    break
+                }
+                [void]($stream.Seek($position, [System.IO.SeekOrigin]::Begin))
             }
-
-            $position += $bytesRead - $searchLength + 1
-            if ($position -gt ($stream.Length - $searchLength)) {
-                break
-            }
-            [void]($stream.Seek($position, [System.IO.SeekOrigin]::Begin))
         }
-    }    
+    }
+    catch {
+        [void]($stream.Close())
+        Write-Error "In process search + replace bytes we have error:" $_.Exception.Message
+        exit 1
+    }
+    finally {
+        $stream.Close()
+    }   
 
-    $stream.Close()
 
     if ($foundPatternsIndexes.Count -eq 0) {
         # It need for prevent error when pass empty array to function
