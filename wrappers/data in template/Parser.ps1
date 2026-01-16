@@ -752,11 +752,11 @@ try {
     [string]$createFilesFromBase64Content = ExtractContent $cleanedTemplate "file_create_from_base64" -saveEmptyLines
     [string]$firewallBlockContent = ExtractContent $cleanedTemplate "firewall_block"
     [string]$firewallRemoveBlockContent = ExtractContent $cleanedTemplate "firewall_remove_block"
-    [string]$registryModifyContent = ExtractContent $cleanedTemplate "registry_file"
-    [string]$prePowershellCodeContent = ExtractContent $cleanedTemplate "pre_powershell_code"
-    [string]$preCmdCodeContent = ExtractContent $cleanedTemplate "pre_cmd_code"
-    [string]$postPowershellCodeContent = ExtractContent $cleanedTemplate "post_powershell_code"
-    [string]$postCmdCodeContent = ExtractContent $cleanedTemplate "post_cmd_code"
+    [string]$registryModifyContent = ExtractContent $cleanedTemplate "registry_file" -saveEmptyLines
+    [string]$prePowershellCodeContent = ExtractContent $cleanedTemplate "pre_powershell_code" -saveEmptyLines
+    [string]$preCmdCodeContent = ExtractContent $cleanedTemplate "pre_cmd_code" -saveEmptyLines
+    [string]$postPowershellCodeContent = ExtractContent $cleanedTemplate "post_powershell_code" -saveEmptyLines
+    [string]$postCmdCodeContent = ExtractContent $cleanedTemplate "post_cmd_code" -saveEmptyLines
 
 
     # Simple detection for needed admins rights:
