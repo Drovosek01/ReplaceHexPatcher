@@ -960,10 +960,10 @@ try {
         
         Write-InfoMsg "Deleting files and folders complete"
     }
-
+    
     if (($createFilesFromTextContent.Count -gt 0) -and ($createFilesFromTextContent[0].Length -gt 0) -and (-not $needUsePatchSectionsOnly)) {
         Write-InfoMsg "Start parsing lines for create files..." -isHeader
-
+        
         if (-not (Get-Command -Name DeleteFilesOrFolders -ErrorAction SilentlyContinue)) {
             # Import external Powershell-code
             $deleteFilesOrFoldersScriptNameFull = "$deleteFilesOrFoldersScriptName.ps1"
@@ -1006,6 +1006,22 @@ try {
 
     if (($createFilesFromBase64Content.Count -gt 0) -and ($createFilesFromBase64Content[0].Length -gt 0) -and (-not $needUsePatchSectionsOnly)) {
         Write-InfoMsg "Start parsing data for create files from base64..." -isHeader
+
+        if (-not (Get-Command -Name DeleteFilesOrFolders -ErrorAction SilentlyContinue)) {
+            # Import external Powershell-code
+            $deleteFilesOrFoldersScriptNameFull = "$deleteFilesOrFoldersScriptName.ps1"
+            if (Test-Path ".\$deleteFilesOrFoldersScriptNameFull") {
+                . (Resolve-Path ".\$deleteFilesOrFoldersScriptNameFull")
+            }
+            elseif (Test-Path ".\libraries\$deleteFilesOrFoldersScriptNameFull") {
+                . (Resolve-Path ".\libraries\$deleteFilesOrFoldersScriptNameFull")
+            }
+            else {
+                $tempPSFile = (DownloadPSScript -link $deleteFilesOrFoldersScriptURL -fileName $deleteFilesOrFoldersScriptNameFull)
+                [void]($tempFilesForRemove.Add($tempPSFile))
+                . $tempPSFile
+            }
+        }
 
         if (Get-Command -Name CreateAllFilesFromBase64 -ErrorAction SilentlyContinue) {
             CreateAllFilesFromBase64 $createFilesFromBase64Content
