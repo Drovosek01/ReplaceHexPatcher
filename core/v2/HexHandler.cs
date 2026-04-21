@@ -688,7 +688,10 @@ namespace HexHandler
                         break;
 
                     bool match = true;
-                    for (int j = 1; j < searchPattern.Length; j++)
+
+                    // Check the remaining bytes, starting from the END of the pattern
+                    // (going from searchPattern.Length - 1 down to 1, since index 0 has already been checked)
+                    for (int j = searchPattern.Length - 1; j >= 1; j--)
                     {
                         if (buffer[foundIndex + j] != searchPattern[j])
                         {
@@ -823,7 +826,10 @@ namespace HexHandler
                         break;
 
                     bool match = true;
-                    for (int j = 1; j < searchPattern.Length; j++)
+                    
+                    // Check the remaining bytes, starting from the END of the pattern
+                    // (going from searchPattern.Length - 1 down to 1, since index 0 has already been checked)
+                    for (int j = searchPattern.Length - 1; j >= 1; j--)
                     {
                         if (!wildcardsMask[j] && buffer[foundIndex + j] != searchPattern[j])
                         {
@@ -1435,30 +1441,45 @@ namespace HexHandler
 
             while ((bytesRead = stream.Read(buffer, 0, buffer.Length)) > 0)
             {
-                for (int i = 0; i <= bytesRead - searchPattern.Length; i++)
+                // Limit the loop so that i + (pattern length - 1) does not go beyond the number of bytes read
+                int limit = bytesRead - searchPattern.Length;
+
+                for (int i = 0; i <= limit; i++)
                 {
-                    bool match = true;
-                    for (int j = 0; j < searchPattern.Length; j++)
+                    // Checking the first byte (quick check)
+                    if (buffer[i] == searchPattern[0])
                     {
-                        if (buffer[i + j] != searchPattern[j])
+                        bool match = true;
+
+                        // Check the remaining bytes, starting from the END of the pattern
+                        // (going from searchPattern.Length - 1 down to 1, since index 0 has already been checked)
+                        for (int j = searchPattern.Length - 1; j >= 1; j--)
                         {
-                            match = false;
-                            break;
+                            if (buffer[i + j] != searchPattern[j])
+                            {
+                                match = false;
+                                break;
+                            }
                         }
-                    }
 
-                    if (match)
-                    {
-                        foundPosition = position + i;
-                        return foundPosition;
+                        if (match)
+                        {
+                            foundPosition = position + i;
+                            return foundPosition;
+                        }
+                        
                     }
                 }
 
-                position += bytesRead - searchPattern.Length + 1;
-                if (position > stream.Length - searchPattern.Length)
-                {
+                // Calculate the offset for the next read
+                // Shift so that the last block checked fits into the next buffer (overlap)
+
+                long nextPosition = position + bytesRead - searchPattern.Length + 1;
+        
+                if (nextPosition >= stream.Length || nextPosition <= position)
                     break;
-                }
+
+                position = nextPosition;
                 stream.Seek(position, SeekOrigin.Begin);
             }
 
