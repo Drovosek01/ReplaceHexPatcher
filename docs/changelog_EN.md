@@ -2,6 +2,21 @@
 
 Language: [Русский](changelog_RU.md) | English
 
+### v2.4.1
+
+Fixed:
+- Fixed an issue when unpacking an array when switching to the counting function for the number of occurrences of patterns
+- Fixed an issue when unpacking an array when returning from a function, after applying hex patterns in the "monolithic" script `ReplaceHexBytesAll.ps1`
+- Fixed an issue when deleting created files from sections `file_create_from_text` and `file_create_from_base64`
+- Fixed an issue that removed all indents in multiline variables from the code in sections `*_powershell_code`, `*_cmd_code`
+- Fixed an issue where text from the `file_create_from_text` section was saved in "UTF-8 with BOM" encoding instead of the usual "UTF-8"
+
+Improved:
+- the byte pattern search algorithm has been slightly improved
+- previously, when finding the first byte from a pattern, the search for the next bytes went sequentially from the found first byte to the end of the pattern
+  - now, when finding the first byte from the pattern, the search for the next bytes goes from the end of the pattern to the beginning
+    - this is done in the "boyer moore horspool" algorithms that I have seen, and this will potentially increase the search speed, because the bytes at the end of the pattern match the sequences less often than the bytes at the beginning of the patterns.
+
 ### v2.4
 
 Added:

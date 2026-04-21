@@ -39,7 +39,7 @@ In this case, the alternative option is not a native method.:
 - sed can be downloaded from (and is included in):
     - [sed-windows](https://github.com/mbuilov/sed-windows)
     - [sed for Windows](https://gnuwin32.sourceforge.net/packages/sed.htm) (GNU for Win32) + [Sourceforge files](https://sourceforge.net/projects/gnuwin32/files/sed/)
-    - [Git for Windows](https://git-scm.com/download/win) or [сайт 2](https://gitforwindows.org/) and to use `perl` и `sed` which are available in Git Bash
+    - [Git for Windows](https://git-scm.com/download/win) or [site 2](https://gitforwindows.org/) and to use `perl` or `sed` which are available in Git Bash
     - [Cygwin](https://cygwin.com/)
     - [msysgit](https://github.com/msysgit/msysgit/) or [msys2](https://www.msys2.org/)
     - [GNU utilities for Win32](https://unxutils.sourceforge.net/)
@@ -110,7 +110,7 @@ An approximate algorithm:
 2. Run `Start.cmd` and select the written txt file
 3. Or use Powershell to directly run `Parser.ps1` and pass it the path or template link as an argument.:
 ```powershell
-.\Parser.ps1 -templatePath "D:\path к\template.txt "
+.\Parser.ps1 -templatePath "D:\path to\template.txt "
 ```
 
 
