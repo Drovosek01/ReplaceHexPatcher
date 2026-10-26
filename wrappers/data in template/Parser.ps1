@@ -5,6 +5,32 @@ param (
 
 
 # =====
+# Pre-installation
+# =====
+
+# Potential correction of situations where the user name contains non‑English letters.
+try {
+    $env:TEMP = (Get-Item -LiteralPath $env:TEMP -ErrorAction Stop).FullName
+}
+catch {
+    $env:TEMP = Join-Path ([Environment]::GetFolderPath('LocalApplicationData')) 'Temp'
+}
+
+try {
+    $env:TMP = (Get-Item -LiteralPath $env:TMP -ErrorAction Stop).FullName
+} catch {
+    $env:TMP = $env:TEMP
+}
+
+try {
+    $env:USERPROFILE = (Get-Item -LiteralPath $env:USERPROFILE -ErrorAction Stop).FullName
+}
+catch {
+    $env:USERPROFILE = [Environment]::GetFolderPath('UserProfile')
+}
+
+
+# =====
 # GLOBAL VARIABLES
 # =====
 
