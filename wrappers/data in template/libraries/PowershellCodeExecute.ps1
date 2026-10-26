@@ -64,6 +64,6 @@ function PowershellCodeExecute {
     }
     catch {
         Write-Error "We have problems with executing Powershell script from template. Exit code is $($processId.ExitCode)"
-        throw $_.Exception.Message
+        throw "$($_.Exception.Message)"
     }
 }

@@ -456,7 +456,7 @@ Set-Acl -Path '$targetPath' -AclObject `$acl
         Remove-Item -Path $backupTempAbsoluteName -Force 2>$null
         Remove-Item -Path $backupAbsoluteName -Force 2>$null
 
-        throw $_.Exception.Message
+        throw "$($_.Exception.Message)"
     }
     finally {
         if ($needRunAS -and !(DoWeHaveAdministratorPrivileges)) {

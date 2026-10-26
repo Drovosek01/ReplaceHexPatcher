@@ -590,7 +590,7 @@ function DownloadPSScript {
         (New-Object System.Net.WebClient).DownloadFile($link, $filePathFull)
     }
     catch {
-        Write-Error "Something wrong when download external Powershell-script. Error message is: $_.Exception.Message"
+        Write-Error "Something wrong when download external Powershell-script. Error message is: $($_.Exception.Message)"
         exit 1
     }
 
@@ -1197,7 +1197,7 @@ try {
     }
 }
 catch {
-    Write-Error $_.Exception.Message
+    Write-Error "$($_.Exception.Message)"
     exit 1
 }
 finally {

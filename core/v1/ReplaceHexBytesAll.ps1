@@ -543,7 +543,7 @@ function SearchAndReplace-HexPatternInBinaryFile {
     }
     catch {
         [void]($stream.Close())
-        Write-Error "In process search + replace bytes we have error:" $_.Exception.Message
+        Write-Error "In process search + replace bytes we have error: $($_.Exception.Message)"
         exit 1
     }
     finally {
@@ -662,7 +662,7 @@ try {
 
     HandleReplacedPatternsIndexes $patternsExtracted $replacedPatternsIndexes
 } catch {
-    Write-Error $_.Exception.Message
+    Write-Error "$($_.Exception.Message)"
     exit 1
 }
 

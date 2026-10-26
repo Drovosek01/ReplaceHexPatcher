@@ -1315,7 +1315,7 @@ function PowershellCodeExecute {
         Remove-Item -Path $tempFile -Force -ErrorAction Stop
     }
     catch {
-        Write-Error "Error while execute Powershell-code from template - " $_.Exception.Message
+        Write-Error "Error while execute Powershell-code from template -  $($_.Exception.Message)"
     }
 }
 
@@ -1389,7 +1389,7 @@ function CmdCodeExecute {
         Remove-Item -Path $tempFile -Force -ErrorAction Stop
     }
     catch {
-        Write-Error "Error while execute CMD-code from template - " $_.Exception.Message
+        Write-Error "Error while execute CMD-code from template - $($_.Exception.Message)"
     }
 }
 
@@ -1694,7 +1694,7 @@ try {
         Remove-Item $fullTemplatePath
     }
 } catch {
-    Write-Error $_.Exception.Message
+    Write-Error "$($_.Exception.Message)"
     exit 1
 }
 

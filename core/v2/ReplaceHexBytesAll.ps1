@@ -327,7 +327,7 @@ function Apply-HexPatternInBinaryFile {
         Remove-Item -Path "$backupTempAbsoluteName" -Force 2>$null
         Remove-Item -Path "$backupAbsoluteName" -Force 2>$null
 
-        Write-Error $_.Exception.Message
+        Write-Error "$($_.Exception.Message)"
         exit 1
     }
     finally {

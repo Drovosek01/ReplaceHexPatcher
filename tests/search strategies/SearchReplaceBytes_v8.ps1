@@ -1340,7 +1340,7 @@ try {
     if ($stream.CanWrite) {
         $stream.Close()
     }
-    Write-Error $_.Exception.Message
+    Write-Error "$($_.Exception.Message)"
     exit 1
 }
 

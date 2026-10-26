@@ -76,6 +76,6 @@ function CmdCodeExecute {
     }
     catch {
         Write-Error "Error while execute CMD-code from template"
-        throw $_.Exception.Message
+        throw "$($_.Exception.Message)"
     }
 }
