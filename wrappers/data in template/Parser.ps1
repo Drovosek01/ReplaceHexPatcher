@@ -29,6 +29,12 @@ catch {
     $env:USERPROFILE = [Environment]::GetFolderPath('UserProfile')
 }
 
+# alternative:
+# $longTemp = Join-Path ([Environment]::GetFolderPath('LocalApplicationData')) 'Temp'
+# if ($env:TEMP -match '~\d' -and (Test-Path -LiteralPath $longTemp)) { $env:TEMP = $longTemp }
+# if ($env:TMP  -match '~\d') { $env:TMP = $env:TEMP }
+# if ($env:USERPROFILE -match '~\d') { $env:USERPROFILE = [Environment]::GetFolderPath('UserProfile') }
+
 
 # =====
 # GLOBAL VARIABLES
@@ -582,8 +588,8 @@ function DownloadPSScript {
     [string]$filePathFull = "${env:Temp}\$fileNameFull.ps1"
 
     try {
-        if (Test-Path $filePathFull) {
-            Remove-Item -Path $filePathFull -Force -ErrorAction Stop
+        if (Test-Path -LiteralPath $filePathFull) {
+            Remove-Item -LiteralPath $filePathFull -Force -ErrorAction Stop
             # TODO: Maybe need check if file is using and kill process for kill process using this file
         }
     
@@ -1202,7 +1208,7 @@ catch {
 }
 finally {
     # Delete all temp Powershell-script files
-    $tempFilesForRemove | foreach { Remove-Item -Path $_ -Force 2>$null }
+    $tempFilesForRemove | foreach { Remove-Item -LiteralPath $_ -Force -ErrorAction SilentlyContinue }
 }
 
 if ($flagsAll.Contains($SHOW_EXECUTION_TIME_flag_text)) {
